@@ -2453,4 +2453,11 @@ SYSCALL_DEFINE1(mysem_down, void*, mysem)
 	return 0;
 }
 
+SYSCALL_DEFINE2(mysem_destroy, void*, mysem, int, value)
+{
+	struct my_semaphore *_mysem = (struct my_semaphore*)mysem;
+	my_sem_destroy(_mysem, value);
+	return 0;
+}
+
 #endif /* CONFIG_COMPAT */

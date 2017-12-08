@@ -375,3 +375,4 @@
 555 common  mysem_init  sys_mysem_init
 556 common  mysem_up    sys_mysem_up
 557 common  mysem_down  sys_mysem_down
+558 common  mysem_destroy  sys_mysem_destroy
