@@ -43,4 +43,34 @@ extern int __must_check down_trylock(struct semaphore *sem);
 extern int __must_check down_timeout(struct semaphore *sem, long jiffies);
 extern void up(struct semaphore *sem);
 
+
+
+
+//////////////////	MY_SEM	//////////////////
+
+struct my_semaphore {
+	raw_spinlock_t		lock;
+	unsigned int		count;
+	struct list_head	wait_list;
+
+	struct task_struct	*manager;
+};
+
+struct my_semaphore_waiter {
+	struct list_head list;
+	struct task_struct *task;
+	bool up;
+};
+
+#define __MY_SEMAPHORE_INITIALIZER(name, n)				\
+{									\
+	.lock		= __RAW_SPIN_LOCK_UNLOCKED((name).lock),	\
+	.count		= n,						\
+	.wait_list	= LIST_HEAD_INIT((name).wait_list),		\
+}
+
+extern void my_sem_init(struct my_semaphore *sem, int val);
+extern void my_sem_down(struct my_semaphore *sem);
+extern void my_sem_up(struct my_semaphore *sem);
+
 #endif /* __LINUX_SEMAPHORE_H */

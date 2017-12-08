@@ -261,3 +261,159 @@ static noinline void __sched __up(struct semaphore *sem)
 	waiter->up = true;
 	wake_up_process(waiter->task);
 }
+
+
+
+//////////////////	MY_SEM	/////////////////
+#include <linux/kthread.h>
+
+int __manager_thread(void *data) {
+	struct my_semaphore* sem = (struct my_semaphore*) data;
+
+	while(!kthread_should_stop()) {
+		//TODO: complete!
+
+		printk("hello :D\n");
+		printk("SEMAPHORE: %d", sem->count);
+
+	}
+
+	return 0;
+}
+
+struct my_semaphore_waiter* __find_max_prio_waiter(struct my_semaphore *sem) {
+
+	struct my_semaphore_waiter *waiter = list_first_entry(&sem->wait_list, struct my_semaphore_waiter, list);
+	struct my_semaphore_waiter *max_waiter = waiter;
+
+	if(waiter != NULL) {
+
+		int max_prio = waiter->task->prio;
+		max_waiter = waiter;
+
+		while((waiter->list).next != NULL) {
+			waiter = list_first_entry(&waiter->list, struct my_semaphore_waiter, list);
+
+			if(waiter->task->prio > max_prio) {
+				max_prio = waiter->task->prio;
+				max_waiter = waiter;
+			}
+		}
+
+		return max_waiter;
+
+	} else
+		return NULL;
+
+}
+
+static noinline void __sched __my_up(struct my_semaphore *sem)
+{
+
+	struct my_semaphore_waiter *waiter = __find_max_prio_waiter(sem);
+
+	if(waiter != NULL) {
+
+		list_del(&max_waiter->list);
+		max_waiter->up = true;  //TODO: chera in niyaaaaze?
+		wake_up_process(max_waiter->task);
+
+	}
+
+}
+
+static inline int __sched __my_down(struct my_semaphore *sem)
+{
+	struct task_struct *task = current;
+	struct my_semaphore_waiter waiter;
+
+	list_add_tail(&waiter.list, &sem->wait_list);
+	waiter.task = task;
+	waiter.up = false;
+
+	for (;;) {
+		if (signal_pending_state(TASK_INTERRUPTIBLE, task))
+			goto interrupted;
+		__set_task_state(task, TASK_INTERRUPTIBLE);
+		raw_spin_unlock_irq(&sem->lock);
+		raw_spin_lock_irq(&sem->lock);
+		if (waiter.up)
+			return 0;
+	}
+
+	interrupted:
+	list_del(&waiter.list);
+	return -EINTR;
+}
+
+
+
+struct task_struct* __select_random_task(struct my_semaphore *sem) {
+
+	struct my_semaphore_waiter *waiter = list_first_entry(&sem->wait_list, struct my_semaphore_waiter, list);
+	if(waiter == NULL)
+		return;
+
+	int max_prio = waiter->task->prio;
+
+	//TODO: get random uped task
+	//TODO: make prio up
+	//TODO: sleep in thread
+	//TODO: make prio down
+
+}
+
+
+void __random_boost(struct my_semaphore *sem) {
+	raw_spin_lock_irqsave(&sem->lock, flags);
+
+
+	// if wait_list is empty -> do noting!
+	if (likely(list_empty(&sem->wait_list)))
+		return;
+
+
+	// find max prio
+	int max_prio = find_max_prio(sem);
+	if(max_prio == -1)
+		return;
+
+	raw_spin_unlock_irqrestore(&sem->lock, flags);
+}
+
+
+void my_sem_init(struct my_semaphore *sem, int val)
+{
+	static struct lock_class_key __key;
+	*sem = (struct my_semaphore) __MY_SEMAPHORE_INITIALIZER(*sem, val);
+	lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);	//TODO: in chiye?
+
+	sem->manager = kthread_run(thread_manager, sem, "MY_SEMAPHORE_MANAGER");
+}
+EXPORT_SYMBOL(my_sem_init);
+
+
+void my_sem_up(struct my_semaphore *sem) {
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&sem->lock, flags);
+	if (likely(list_empty(&sem->wait_list)))
+		sem->count++;
+	else
+		__my_up(sem);
+	raw_spin_unlock_irqrestore(&sem->lock, flags);
+}
+EXPORT_SYMBOL(my_sem_up);
+
+
+void my_sem_down(struct my_semaphore *sem) {
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&sem->lock, flags);
+	if (likely(sem->count > 0))
+		sem->count--;
+	else
+		__my_down(sem);
+	raw_spin_unlock_irqrestore(&sem->lock, flags);
+}
+EXPORT_SYMBOL(my_sem_down);
