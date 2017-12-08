@@ -51,12 +51,14 @@ extern void up(struct semaphore *sem);
 struct my_semaphore {
 	raw_spinlock_t		lock;
 	unsigned int		count;
+
 	struct list_head	wait_list;
+	struct list_head	run_list;
 
 	struct task_struct	*manager;
 };
 
-struct my_semaphore_waiter {
+struct my_semaphore_list_items {
 	struct list_head list;
 	struct task_struct *task;
 	bool up;
@@ -67,10 +69,12 @@ struct my_semaphore_waiter {
 	.lock		= __RAW_SPIN_LOCK_UNLOCKED((name).lock),	\
 	.count		= n,						\
 	.wait_list	= LIST_HEAD_INIT((name).wait_list),		\
+	.run_list	= LIST_HEAD_INIT((name).run_list),		\
 }
 
 extern void my_sem_init(struct my_semaphore *sem, int val);
 extern void my_sem_down(struct my_semaphore *sem);
 extern void my_sem_up(struct my_semaphore *sem);
+extern void my_sem_destroy(struct my_semaphore *sem);
 
 #endif /* __LINUX_SEMAPHORE_H */

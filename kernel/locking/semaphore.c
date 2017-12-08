@@ -267,20 +267,6 @@ static noinline void __sched __up(struct semaphore *sem)
 //////////////////	MY_SEM	/////////////////
 #include <linux/kthread.h>
 
-int __manager_thread(void *data) {
-	struct my_semaphore* sem = (struct my_semaphore*) data;
-
-	while(!kthread_should_stop()) {
-		//TODO: complete!
-
-		printk("hello :D\n");
-		printk("SEMAPHORE: %d", sem->count);
-
-	}
-
-	return 0;
-}
-
 struct my_semaphore_waiter* __find_max_prio_waiter(struct my_semaphore *sem) {
 
 	struct my_semaphore_waiter *waiter = list_first_entry(&sem->wait_list, struct my_semaphore_waiter, list);
@@ -346,61 +332,47 @@ static inline int __sched __my_down(struct my_semaphore *sem)
 	return -EINTR;
 }
 
-
-
-struct task_struct* __select_random_task(struct my_semaphore *sem) {
-
-	struct my_semaphore_waiter *waiter = list_first_entry(&sem->wait_list, struct my_semaphore_waiter, list);
-	if(waiter == NULL)
-		return;
-
-	int max_prio = waiter->task->prio;
-
-	//TODO: get random uped task
-	//TODO: make prio up
-	//TODO: sleep in thread
-	//TODO: make prio down
-
-}
-
-
-void __random_boost(struct my_semaphore *sem) {
-	raw_spin_lock_irqsave(&sem->lock, flags);
-
-
-	// if wait_list is empty -> do noting!
-	if (likely(list_empty(&sem->wait_list)))
-		return;
-
-
-	// find max prio
-	int max_prio = find_max_prio(sem);
-	if(max_prio == -1)
-		return;
-
-	raw_spin_unlock_irqrestore(&sem->lock, flags);
-}
-
-
 void my_sem_init(struct my_semaphore *sem, int val)
 {
 	static struct lock_class_key __key;
 	*sem = (struct my_semaphore) __MY_SEMAPHORE_INITIALIZER(*sem, val);
 	lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);	//TODO: in chiye?
-
-	sem->manager = kthread_run(thread_manager, sem, "MY_SEMAPHORE_MANAGER");
 }
 EXPORT_SYMBOL(my_sem_init);
 
+
+// remove current task from run_list if exist!
+static inline int __sched __remove_current_from_run_list(struct my_semaphore *sem) {
+	struct task_struct *task = current;
+
+	// if list is empty do nothing!
+	if (unlikely(list_empty(&sem->run_list)))
+		return;
+
+	// search for task
+	struct my_semaphore_list_items *runner = list_first_entry(&sem->run_list, struct my_semaphore_list_items, list);
+	while(runner != NULL) {
+
+		// found
+		if(unlikely(runner->task == task))
+			list_del(runner->list);
+
+		runner = list_first_entry(&runner->list, struct my_semaphore_list_items, list);
+
+	}
+}
 
 void my_sem_up(struct my_semaphore *sem) {
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&sem->lock, flags);
+
+	__remove_current_from_run_list(sem);
 	if (likely(list_empty(&sem->wait_list)))
 		sem->count++;
 	else
 		__my_up(sem);
+
 	raw_spin_unlock_irqrestore(&sem->lock, flags);
 }
 EXPORT_SYMBOL(my_sem_up);
@@ -410,10 +382,18 @@ void my_sem_down(struct my_semaphore *sem) {
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&sem->lock, flags);
+
 	if (likely(sem->count > 0))
 		sem->count--;
 	else
 		__my_down(sem);
+
 	raw_spin_unlock_irqrestore(&sem->lock, flags);
 }
 EXPORT_SYMBOL(my_sem_down);
+
+
+extern void my_sem_destroy(struct my_semaphore *sem) {
+	//TODO: complete!
+}
+EXPORT_SYMBOL(my_sem_destroy);
