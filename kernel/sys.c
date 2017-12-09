@@ -2453,10 +2453,10 @@ SYSCALL_DEFINE1(mysem_down, void*, mysem)
 	return 0;
 }
 
-SYSCALL_DEFINE2(mysem_destroy, void*, mysem, int, value)
+SYSCALL_DEFINE1(mysem_destroy, void*, mysem)
 {
 	struct my_semaphore *_mysem = (struct my_semaphore*)mysem;
-	my_sem_destroy(_mysem, value);
+	my_sem_destroy(_mysem);
 	return 0;
 }
 
