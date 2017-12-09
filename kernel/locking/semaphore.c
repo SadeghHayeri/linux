@@ -271,8 +271,6 @@ static noinline void __sched __up(struct semaphore *sem)
 
 ///////////// linked_list functions ///////////
 struct my_semaphore_list_items* __find_item(struct list_head* list, struct task_struct* task) {
-    if (unlikely(list_empty(&list)))
-        return NULL;
 
     struct my_semaphore_list_items *pos;
     list_for_each_entry(pos, list, list) {
@@ -285,10 +283,15 @@ struct my_semaphore_list_items* __find_item(struct list_head* list, struct task_
 
 static inline void __add_to_list(struct list_head* list, struct task_struct* task, bool up) {
     if(likely(__find_item(list, task) == NULL)) {
-        struct my_semaphore_list_items item;
-        list_add_tail(&item, &list);
-        item.task = task;
-        item.up = up;
+
+        struct my_semaphore_list_items* item;
+        item = kmalloc(sizeof(*item), GFP_KERNEL);
+
+        item->task = task;
+        item->up = up;
+
+        list_add_tail(&item->list, list);
+
     }
 }
 
@@ -300,8 +303,6 @@ static inline void __remove_from_list(struct list_head* list, struct task_struct
 }
 
 struct my_semaphore_list_items* __find_max_prio_waiter(struct my_semaphore *sem) {
-    struct my_semaphore_list_items *waiter = list_first_entry(&sem->wait_list, struct my_semaphore_list_items, list);
-    struct my_semaphore_list_items *max_waiter = waiter;
 
     int max_prio = 0;
     struct my_semaphore_list_items* max_prio_item = NULL;
