@@ -267,55 +267,104 @@ static noinline void __sched __up(struct semaphore *sem)
 //////////////////	MY_SEM	/////////////////
 #include <linux/kthread.h>
 
-struct my_semaphore_waiter* __find_max_prio_waiter(struct my_semaphore *sem) {
 
-	struct my_semaphore_waiter *waiter = list_first_entry(&sem->wait_list, struct my_semaphore_waiter, list);
-	struct my_semaphore_waiter *max_waiter = waiter;
 
-	if(waiter != NULL) {
+///////////// linked_list functions ///////////
+struct my_semaphore_list_items* __find_item(struct list_head* list, struct task_struct* task) {
+    if (unlikely(list_empty(&list)))
+        return NULL;
 
-		int max_prio = waiter->task->prio;
-		max_waiter = waiter;
+    struct my_semaphore_list_items *curr = list_first_entry(&list, struct my_semaphore_list_items, list);
+    while(curr != NULL) {
 
-		while((waiter->list).next != NULL) {
-			waiter = list_first_entry(&waiter->list, struct my_semaphore_waiter, list);
+        // found
+        if(unlikely(curr->task == task))
+            return runner;
 
-			if(waiter->task->prio > max_prio) {
-				max_prio = waiter->task->prio;
-				max_waiter = waiter;
-			}
-		}
+        curr = list_first_entry(&curr->list, struct my_semaphore_list_items, list);
 
-		return max_waiter;
+    }
 
-	} else
-		return NULL;
-
+    return NULL;
 }
 
-static noinline void __sched __my_up(struct my_semaphore *sem)
+static inline void __add_to_list(struct list_head* list, struct task_struct* task, bool up) {
+    if(likely(__find_item(list, task) == NULL)) {
+        struct my_semaphore_list_items item;
+        list_add_tail(&item, &list);
+        item.task = task;
+        item.up = up;
+    }
+}
+
+static inline void __remove_from_list(struct list_head* list, struct task_struct* task) {
+    struct my_semaphore_list_items* item = __find_item(list, task);
+
+    if(likely(item != NULL))
+        list_del(&item->list);
+}
+
+struct my_semaphore_list_items* __find_max_prio_waiter(struct my_semaphore *sem) {
+    struct my_semaphore_list_items *waiter = list_first_entry(&sem->wait_list, struct my_semaphore_list_items, list);
+    struct my_semaphore_list_items *max_waiter = waiter;
+
+    if(waiter != NULL) {
+        int max_prio = waiter->task->prio;
+        max_waiter = waiter;
+
+        while((waiter->list).next != NULL) {
+            waiter = list_first_entry(&waiter->list, struct my_semaphore_list_items, list);
+
+            if(waiter->task->prio > max_prio) {
+                max_prio = waiter->task->prio;
+                max_waiter = waiter;
+            }
+        }
+        return max_waiter;
+    } else
+        return NULL;
+}
+////////////////////
+
+///////////// my_sem linked-list functions ////////////
+static noinline void __sched __add_current_to_wait_list(struct my_semaphore *sem) {
+    struct task_struct *task = current;
+    __add_to_list(&sem->wait_list, task, false);
+}
+
+static noinline void __sched __remove_current_from_wait_list(struct my_semaphore *sem) {
+    struct task_struct *task = current;
+    __remove_from_list(&sem->wait_list, task);
+}
+
+static noinline void __sched __add_current_to_run_list(struct my_semaphore *sem) {
+    struct task_struct *task = current;
+    __add_to_list(&sem->run_list, task, false);
+}
+
+static noinline void __sched __remove_current_from_run_list(struct my_semaphore *sem) {
+    struct task_struct *task = current;
+    __remove_from_list(&sem->run_list, task);
+}
+///////////////////////////////////////////////////////
+
+static noinline void __my_up(struct my_semaphore *sem)
 {
-
-	struct my_semaphore_waiter *waiter = __find_max_prio_waiter(sem);
-
+	struct my_semaphore_list_items *waiter = __find_max_prio_waiter(sem);
 	if(waiter != NULL) {
 
-		list_del(&max_waiter->list);
-		max_waiter->up = true;  //TODO: chera in niyaaaaze?
+        // move waiter from wait_list -> run_list
+        __remove_from_list(&sem->wait_list, waiter->task);
+        __add_to_list(&sem->run_list, waiter->task, true);
+
 		wake_up_process(max_waiter->task);
 
 	}
-
 }
 
 static inline int __sched __my_down(struct my_semaphore *sem)
 {
 	struct task_struct *task = current;
-	struct my_semaphore_waiter waiter;
-
-	list_add_tail(&waiter.list, &sem->wait_list);
-	waiter.task = task;
-	waiter.up = false;
 
 	for (;;) {
 		if (signal_pending_state(TASK_INTERRUPTIBLE, task))
@@ -328,8 +377,9 @@ static inline int __sched __my_down(struct my_semaphore *sem)
 	}
 
 	interrupted:
-	list_del(&waiter.list);
-	return -EINTR;
+        __remove_current_from_run_list(sem);
+        __add_current_to_run_list(sem);
+        return -EINTR;
 }
 
 void my_sem_init(struct my_semaphore *sem, int val)
@@ -339,28 +389,6 @@ void my_sem_init(struct my_semaphore *sem, int val)
 	lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);	//TODO: in chiye?
 }
 EXPORT_SYMBOL(my_sem_init);
-
-
-// remove current task from run_list if exist!
-static inline int __sched __remove_current_from_run_list(struct my_semaphore *sem) {
-	struct task_struct *task = current;
-
-	// if list is empty do nothing!
-	if (unlikely(list_empty(&sem->run_list)))
-		return;
-
-	// search for task
-	struct my_semaphore_list_items *runner = list_first_entry(&sem->run_list, struct my_semaphore_list_items, list);
-	while(runner != NULL) {
-
-		// found
-		if(unlikely(runner->task == task))
-			list_del(runner->list);
-
-		runner = list_first_entry(&runner->list, struct my_semaphore_list_items, list);
-
-	}
-}
 
 void my_sem_up(struct my_semaphore *sem) {
 	unsigned long flags;
@@ -383,6 +411,7 @@ void my_sem_down(struct my_semaphore *sem) {
 
 	raw_spin_lock_irqsave(&sem->lock, flags);
 
+    __add_current_to_wait_list(sem);
 	if (likely(sem->count > 0))
 		sem->count--;
 	else
