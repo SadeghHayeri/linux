@@ -274,15 +274,10 @@ struct my_semaphore_list_items* __find_item(struct list_head* list, struct task_
     if (unlikely(list_empty(&list)))
         return NULL;
 
-    struct my_semaphore_list_items *curr = list_first_entry(&list, struct my_semaphore_list_items, list);
-    while(curr != NULL) {
-
-        // found
-        if(unlikely(curr->task == task))
-            return runner;
-
-        curr = list_first_entry(&curr->list, struct my_semaphore_list_items, list);
-
+    struct my_semaphore_list_items *pos;
+    list_for_each_entry(pos, list, list) {
+        if(pos->task == task)
+            return pos;
     }
 
     return NULL;
@@ -308,21 +303,19 @@ struct my_semaphore_list_items* __find_max_prio_waiter(struct my_semaphore *sem)
     struct my_semaphore_list_items *waiter = list_first_entry(&sem->wait_list, struct my_semaphore_list_items, list);
     struct my_semaphore_list_items *max_waiter = waiter;
 
-    if(waiter != NULL) {
-        int max_prio = waiter->task->prio;
-        max_waiter = waiter;
+    int max_prio = 0;
+    struct my_semaphore_list_items* max_prio_item = NULL;
 
-        while((waiter->list).next != NULL) {
-            waiter = list_first_entry(&waiter->list, struct my_semaphore_list_items, list);
-
-            if(waiter->task->prio > max_prio) {
-                max_prio = waiter->task->prio;
-                max_waiter = waiter;
-            }
+    struct my_semaphore_list_items* pos;
+    list_for_each_entry(pos, &sem->wait_list, list) {
+        if(max_prio >= pos->task->prio) {
+            max_prio = pos->task->prio;
+            max_prio_item = pos;
         }
-        return max_waiter;
-    } else
-        return NULL;
+    }
+
+    return max_prio_item;
+
 }
 ////////////////////
 
