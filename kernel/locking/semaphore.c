@@ -267,6 +267,9 @@ static noinline void __sched __up(struct semaphore *sem)
 //////////////////	MY_SEM	/////////////////
 #include <linux/kthread.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
+#include <linux/kthread.h>
+#include <linux/random.h>
 
 
 
@@ -343,6 +346,52 @@ static noinline void __sched __remove_current_from_run_list(struct my_semaphore 
 }
 ///////////////////////////////////////////////////////
 
+
+////////////////// booster function ///////////////////
+struct my_semaphore_list_items* __get_random_runner(struct my_semaphore *sem) {
+    int runner_counts = 0;
+    struct my_semaphore_list_items* pos;
+    list_for_each_entry(pos, &sem->run_list, list)
+        runner_counts++;
+
+    if(runner_counts == 0)
+        return NULL;
+
+    int index = 0;
+    int random_runner_index = get_random_int() % runner_counts;
+    list_for_each_entry(pos, &sem->run_list, list) {
+        if(index == random_runner_index)
+            return pos;
+        index++;
+    }
+
+    return NULL;
+}
+
+int __booster_thread_func(void *data) {
+    struct my_semaphore* sem = (struct my_semaphore*)data;
+    int sleep_time = 10 * 1000;
+    int boost_time = 1 * 1000;
+
+    while(true) {
+        msleep(sleep_time);
+
+        struct my_semaphore_list_items* max_prio_waiter = __find_max_prio_waiter(sem);
+        struct my_semaphore_list_items* random_runner = __get_random_runner(sem);
+
+        if(max_prio_waiter == NULL || random_runner == NULL)
+            continue;
+
+        int before_boost_prio = random_runner->task->prio;
+        int max_prio = max_prio_waiter->task->prio;
+
+        random_runner->task->prio = max_prio;
+        msleep(boost_time);
+        random_runner->task->prio = before_boost_prio;
+    }
+}
+///////////////////////////////////////////////////////
+
 static noinline void __my_up(struct my_semaphore *sem)
 {
     struct my_semaphore_list_items *waiter = __find_max_prio_waiter(sem);
@@ -386,11 +435,15 @@ static inline int __sched __my_down(struct my_semaphore *sem)
         return -EINTR;
 }
 
+
+//////////////////// syscalls ///////////////////
 void my_sem_init(struct my_semaphore *sem, int val)
 {
     static struct lock_class_key __key;
     *sem = (struct my_semaphore) __MY_SEMAPHORE_INITIALIZER(*sem, val);
     lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);	//TODO: in chiye?
+
+    sem->booster = kthread_run(__booster_thread_func, (void *)sem, "booster_thread");
 }
 EXPORT_SYMBOL(my_sem_init);
 
@@ -409,7 +462,6 @@ void my_sem_up(struct my_semaphore *sem) {
 }
 EXPORT_SYMBOL(my_sem_up);
 
-
 void my_sem_down(struct my_semaphore *sem) {
     unsigned long flags;
 
@@ -425,8 +477,7 @@ void my_sem_down(struct my_semaphore *sem) {
 }
 EXPORT_SYMBOL(my_sem_down);
 
-
 extern void my_sem_destroy(struct my_semaphore *sem) {
-    //TODO: complete!
+    kthread_stop(sem->booster);
 }
 EXPORT_SYMBOL(my_sem_destroy);

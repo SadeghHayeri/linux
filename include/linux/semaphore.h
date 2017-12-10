@@ -55,7 +55,7 @@ struct my_semaphore {
 	struct list_head	wait_list;
 	struct list_head	run_list;
 
-	struct task_struct	*manager;
+	struct task_struct	*booster;
 };
 
 struct my_semaphore_list_items {
