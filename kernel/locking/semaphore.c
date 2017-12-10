@@ -488,15 +488,20 @@ static inline int __sched __my_down(struct my_semaphore *sem)
 //////////////////// syscalls ///////////////////
 void my_sem_init(struct my_semaphore *sem, int val)
 {
+    printk(KERN_INFO "## init start ##\n");
+
     static struct lock_class_key __key;
     *sem = (struct my_semaphore) __MY_SEMAPHORE_INITIALIZER(*sem, val);
     lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);	//TODO: in chiye?
 
     sem->booster = kthread_run(__booster_thread_func, (void *)sem, "booster_thread");
+
+    printk(KERN_INFO "## init end ##\n");
 }
 EXPORT_SYMBOL(my_sem_init);
 
 void my_sem_up(struct my_semaphore *sem) {
+    printk(KERN_INFO "## up start ##\n");
     unsigned long flags;
 
     raw_spin_lock_irqsave(&sem->lock, flags);
@@ -508,10 +513,12 @@ void my_sem_up(struct my_semaphore *sem) {
         __my_up(sem);
 
     raw_spin_unlock_irqrestore(&sem->lock, flags);
+    printk(KERN_INFO "## up end ##\n");
 }
 EXPORT_SYMBOL(my_sem_up);
 
 void my_sem_down(struct my_semaphore *sem) {
+    printk(KERN_INFO "## down end ##\n");
     unsigned long flags;
 
     raw_spin_lock_irqsave(&sem->lock, flags);
@@ -523,15 +530,18 @@ void my_sem_down(struct my_semaphore *sem) {
         __my_down(sem);
 
     raw_spin_unlock_irqrestore(&sem->lock, flags);
+    printk(KERN_INFO "## down end ##\n");
 }
 EXPORT_SYMBOL(my_sem_down);
 
 extern void my_sem_destroy(struct my_semaphore *sem) {
+    printk(KERN_INFO "## destroy start ##\n");
     unsigned long flags;
     raw_spin_lock_irqsave(&sem->lock, flags);
 
     kthread_stop(sem->booster);
 
     raw_spin_unlock_irqrestore(&sem->lock, flags);
+    printk(KERN_INFO "## destroy end ##\n");
 }
 EXPORT_SYMBOL(my_sem_destroy);
