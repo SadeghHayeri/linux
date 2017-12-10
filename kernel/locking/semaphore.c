@@ -368,26 +368,75 @@ struct my_semaphore_list_items* __get_random_runner(struct my_semaphore *sem) {
     return NULL;
 }
 
+void __print_my_sem_info(struct my_semaphore *sem) {
+    unsigned long flags;
+    raw_spin_lock_irqsave(&sem->lock, flags);
+    printk(KERN_INFO "######## MY_SEM_INFO ########\n");
+
+    printk(KERN_INFO "# run_list:\n");
+    struct my_semaphore_list_items* pos;
+    list_for_each_entry(pos, &sem->run_list, list)
+        printk(KERN_INFO "#\t\t* pid = %d\t-\tprio = %d\n", pos->task->pid, pos->task->prio);
+
+    printk(KERN_INFO "# wait_list:\n");
+    struct my_semaphore_list_items* pos;
+    list_for_each_entry(pos, &sem->wait_list, list)
+        printk(KERN_INFO "#\t\t* pid = %d\t-\tprio = %d\n", pos->task->pid, pos->task->prio);
+
+    printk(KERN_INFO "#############################\n");
+    raw_spin_unlock_irqrestore(&sem->lock, flags);
+}
+
 int __booster_thread_func(void *data) {
     struct my_semaphore* sem = (struct my_semaphore*)data;
     int sleep_time = 10 * 1000;
     int boost_time = 1 * 1000;
+    unsigned long flags;
 
     while(true) {
+        printk(KERN_INFO "# booster started!\n");
         msleep(sleep_time);
 
+        __print_my_sem_info(sem);
+
+        raw_spin_lock_irqsave(&sem->lock, flags);
         struct my_semaphore_list_items* max_prio_waiter = __find_max_prio_waiter(sem);
         struct my_semaphore_list_items* random_runner = __get_random_runner(sem);
+        raw_spin_unlock_irqrestore(&sem->lock, flags);
 
-        if(max_prio_waiter == NULL || random_runner == NULL)
+        if(max_prio_waiter == NULL || random_runner == NULL) {
+            printk(KERN_INFO "# do noting. (waiter: %p) (runner: %p)\n", max_prio_waiter, random_runner);
             continue;
+        }
+
+        raw_spin_lock_irqsave(&sem->lock, flags);
+        printk(KERN_INFO "# selected max_waiter pid: %d prio: %d\n",
+                max_prio_waiter->task->pid,
+                max_prio_waiter->task->prio);
+
+        printk(KERN_INFO "# selected random_runner pid: %d prio: %d\n",
+                random_runner->task->pid,
+                random_runner->task->prio);
 
         int before_boost_prio = random_runner->task->prio;
         int max_prio = max_prio_waiter->task->prio;
 
         random_runner->task->prio = max_prio;
+
+        printk(KERN_INFO "# new random_runner prio: %d\n",
+                random_runner->task->prio);
+        raw_spin_unlock_irqrestore(&sem->lock, flags);
+
         msleep(boost_time);
+
+        raw_spin_lock_irqsave(&sem->lock, flags);
+
+        //TODO: check task exist before change it!
         random_runner->task->prio = before_boost_prio;
+
+        printk(KERN_INFO "# boost down random_runner to prio: %d\n",
+                random_runner->task->prio);
+        raw_spin_unlock_irqrestore(&sem->lock, flags);
     }
 }
 ///////////////////////////////////////////////////////
@@ -478,6 +527,11 @@ void my_sem_down(struct my_semaphore *sem) {
 EXPORT_SYMBOL(my_sem_down);
 
 extern void my_sem_destroy(struct my_semaphore *sem) {
+    unsigned long flags;
+    raw_spin_lock_irqsave(&sem->lock, flags);
+
     kthread_stop(sem->booster);
+
+    raw_spin_unlock_irqrestore(&sem->lock, flags);
 }
 EXPORT_SYMBOL(my_sem_destroy);
