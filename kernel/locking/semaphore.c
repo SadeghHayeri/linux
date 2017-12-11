@@ -270,6 +270,7 @@ static noinline void __sched __up(struct semaphore *sem)
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/random.h>
+#include <asm/io.h>
 
 
 
@@ -370,7 +371,10 @@ struct my_semaphore_list_items* __get_random_runner(struct my_semaphore *sem) {
 
 void __print_my_sem_info(struct my_semaphore *sem) {
     unsigned long flags;
+
+    raw_spin_lock_irqsave(&sem->lock, flags);
     printk(KERN_INFO "######## MY_SEM_INFO ########\n");
+    printk(KERN_INFO "#count: %d\n", sem->count);
 
     printk(KERN_INFO "# run_list:\n");
     struct my_semaphore_list_items* pos;
@@ -383,6 +387,7 @@ void __print_my_sem_info(struct my_semaphore *sem) {
         printk(KERN_INFO "#\t\t* pid = %d\t-\tprio = %d\n", pos->task->pid, pos->task->prio);
 
     printk(KERN_INFO "#############################\n");
+    raw_spin_unlock_irqrestore(&sem->lock, flags);
 }
 
 int __booster_thread_func(void *data) {
@@ -510,13 +515,16 @@ void my_sem_init(struct my_semaphore *sem, int val)
     printk(KERN_INFO "*** 1\n");
     printk(KERN_INFO "## init start ##\n");
 
+    u64 sem_py_address;
     static struct lock_class_key __key;
     *sem = (struct my_semaphore) __MY_SEMAPHORE_INITIALIZER(*sem, val);
     printk(KERN_INFO "*** 2\n");
     lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);	//TODO: in chiye?
     printk(KERN_INFO "*** 3\n");
 
-    sem->booster = kthread_run(__booster_thread_func, (void *)sem, "booster_thread");
+    sem_py_address = virt_to_phys(sem);
+
+    sem->booster = kthread_run(__booster_thread_func, (void *)sem_py_address, "booster_thread");
     printk(KERN_INFO "*** 4\n");
 
     printk(KERN_INFO "## init end ##\n");
@@ -558,6 +566,7 @@ void my_sem_down(struct my_semaphore *sem) {
 EXPORT_SYMBOL(my_sem_down);
 
 extern void my_sem_destroy(struct my_semaphore *sem) {
+
     printk(KERN_INFO "$$$ 1\n");
     printk(KERN_INFO "## destroy start ##\n");
     unsigned long flags;
