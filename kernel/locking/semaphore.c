@@ -370,7 +370,6 @@ struct my_semaphore_list_items* __get_random_runner(struct my_semaphore *sem) {
 
 void __print_my_sem_info(struct my_semaphore *sem) {
     unsigned long flags;
-    raw_spin_lock_irqsave(&sem->lock, flags);
     printk(KERN_INFO "######## MY_SEM_INFO ########\n");
 
     printk(KERN_INFO "# run_list:\n");
@@ -384,7 +383,6 @@ void __print_my_sem_info(struct my_semaphore *sem) {
         printk(KERN_INFO "#\t\t* pid = %d\t-\tprio = %d\n", pos->task->pid, pos->task->prio);
 
     printk(KERN_INFO "#############################\n");
-    raw_spin_unlock_irqrestore(&sem->lock, flags);
 }
 
 int __booster_thread_func(void *data) {
