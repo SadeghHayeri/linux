@@ -396,24 +396,36 @@ int __booster_thread_func(void *data) {
     int boost_time = 1 * 1000;
     int before_boost_prio, max_prio;
     unsigned long flags;
+    printk(KERN_INFO "### 1\n");
+    printk(KERN_INFO "### 2\n");
 
     while(true) {
+        printk(KERN_INFO "### 3\n");
         printk(KERN_INFO "# booster started!\n");
         msleep(sleep_time);
+        printk(KERN_INFO "### 4\n");
 
         __print_my_sem_info(sem);
+        printk(KERN_INFO "### 5\n");
 
         raw_spin_lock_irqsave(&sem->lock, flags);
+        printk(KERN_INFO "### 6\n");
         max_prio_waiter = __find_max_prio_waiter(sem);
+        printk(KERN_INFO "### 7\n");
         random_runner = __get_random_runner(sem);
+        printk(KERN_INFO "### 8\n");
         raw_spin_unlock_irqrestore(&sem->lock, flags);
+        printk(KERN_INFO "### 9\n");
 
         if(max_prio_waiter == NULL || random_runner == NULL) {
+            printk(KERN_INFO "### 10\n");
             printk(KERN_INFO "# do noting. (waiter: %p) (runner: %p)\n", max_prio_waiter, random_runner);
             continue;
         }
 
+        printk(KERN_INFO "### 11\n");
         raw_spin_lock_irqsave(&sem->lock, flags);
+        printk(KERN_INFO "### 12\n");
         printk(KERN_INFO "# selected max_waiter pid: %d prio: %d\n",
                 max_prio_waiter->task->pid,
                 max_prio_waiter->task->prio);
@@ -422,25 +434,34 @@ int __booster_thread_func(void *data) {
                 random_runner->task->pid,
                 random_runner->task->prio);
 
+        printk(KERN_INFO "### 13\n");
         before_boost_prio = random_runner->task->prio;
         max_prio = max_prio_waiter->task->prio;
+        printk(KERN_INFO "### 14\n");
 
         random_runner->task->prio = max_prio;
+        printk(KERN_INFO "### 15\n");
 
         printk(KERN_INFO "# new random_runner prio: %d\n",
                 random_runner->task->prio);
+        printk(KERN_INFO "### 16\n");
         raw_spin_unlock_irqrestore(&sem->lock, flags);
+        printk(KERN_INFO "### 17\n");
 
         msleep(boost_time);
+        printk(KERN_INFO "### 18\n");
 
         raw_spin_lock_irqsave(&sem->lock, flags);
+        printk(KERN_INFO "### 19\n");
 
         //TODO: check task exist before change it!
         random_runner->task->prio = before_boost_prio;
+        printk(KERN_INFO "### 20\n");
 
         printk(KERN_INFO "# boost down random_runner to prio: %d\n",
                 random_runner->task->prio);
         raw_spin_unlock_irqrestore(&sem->lock, flags);
+        printk(KERN_INFO "### 21\n");
     }
 }
 ///////////////////////////////////////////////////////
@@ -493,11 +514,15 @@ static inline int __sched __my_down(struct my_semaphore *sem)
 void my_sem_init(struct my_semaphore *sem, int val)
 {
     static struct lock_class_key __key;
+    printk(KERN_INFO "*** 1\n");
     printk(KERN_INFO "## init start ##\n");
     *sem = (struct my_semaphore) __MY_SEMAPHORE_INITIALIZER(*sem, val);
+    printk(KERN_INFO "*** 2\n");
     lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);	//TODO: in chiye?
+    printk(KERN_INFO "*** 3\n");
 
     sem->booster = kthread_run(__booster_thread_func, (void *)sem, "booster_thread");
+    printk(KERN_INFO "*** 4\n");
 
     printk(KERN_INFO "## init end ##\n");
 }
@@ -540,15 +565,19 @@ void my_sem_down(struct my_semaphore *sem) {
 EXPORT_SYMBOL(my_sem_down);
 
 extern void my_sem_destroy(struct my_semaphore *sem) {
-
     unsigned long flags;
+    printk(KERN_INFO "$$$ 1\n");
     printk(KERN_INFO "## destroy start ##\n");
 
+    printk(KERN_INFO "$$$ 2\n");
     raw_spin_lock_irqsave(&sem->lock, flags);
+    printk(KERN_INFO "$$$ 3\n");
 
     kthread_stop(sem->booster);
+    printk(KERN_INFO "$$$ 4\n");
 
     raw_spin_unlock_irqrestore(&sem->lock, flags);
+    printk(KERN_INFO "$$$ 5\n");
     printk(KERN_INFO "## destroy end ##\n");
 }
 EXPORT_SYMBOL(my_sem_destroy);
