@@ -350,6 +350,7 @@ static noinline void __sched __remove_current_from_run_list(struct my_semaphore 
 ////////////////// booster function ///////////////////
 struct my_semaphore_list_items* __get_random_runner(struct my_semaphore *sem) {
     int runner_counts = 0;
+    int index, random_runner_index;
     struct my_semaphore_list_items* pos;
     list_for_each_entry(pos, &sem->run_list, list)
         runner_counts++;
@@ -357,8 +358,8 @@ struct my_semaphore_list_items* __get_random_runner(struct my_semaphore *sem) {
     if(runner_counts == 0)
         return NULL;
 
-    int index = 0;
-    int random_runner_index = get_random_int() % runner_counts;
+    index = 0;
+    random_runner_index = get_random_int() % runner_counts;
     list_for_each_entry(pos, &sem->run_list, list) {
         if(index == random_runner_index)
             return pos;
@@ -370,16 +371,16 @@ struct my_semaphore_list_items* __get_random_runner(struct my_semaphore *sem) {
 
 void __print_my_sem_info(struct my_semaphore *sem) {
     unsigned long flags;
+    struct my_semaphore_list_items* pos;
     raw_spin_lock_irqsave(&sem->lock, flags);
     printk(KERN_INFO "######## MY_SEM_INFO ########\n");
 
     printk(KERN_INFO "# run_list:\n");
-    struct my_semaphore_list_items* pos;
+
     list_for_each_entry(pos, &sem->run_list, list)
         printk(KERN_INFO "#\t\t* pid = %d\t-\tprio = %d\n", pos->task->pid, pos->task->prio);
 
     printk(KERN_INFO "# wait_list:\n");
-    struct my_semaphore_list_items* pos;
     list_for_each_entry(pos, &sem->wait_list, list)
         printk(KERN_INFO "#\t\t* pid = %d\t-\tprio = %d\n", pos->task->pid, pos->task->prio);
 
@@ -389,8 +390,11 @@ void __print_my_sem_info(struct my_semaphore *sem) {
 
 int __booster_thread_func(void *data) {
     struct my_semaphore* sem = (struct my_semaphore*)data;
+    struct my_semaphore_list_items* random_runner;
+    struct my_semaphore_list_items* max_prio_waiter;
     int sleep_time = 10 * 1000;
     int boost_time = 1 * 1000;
+    int before_boost_prio, max_prio;
     unsigned long flags;
 
     while(true) {
@@ -400,8 +404,8 @@ int __booster_thread_func(void *data) {
         __print_my_sem_info(sem);
 
         raw_spin_lock_irqsave(&sem->lock, flags);
-        struct my_semaphore_list_items* max_prio_waiter = __find_max_prio_waiter(sem);
-        struct my_semaphore_list_items* random_runner = __get_random_runner(sem);
+        max_prio_waiter = __find_max_prio_waiter(sem);
+        random_runner = __get_random_runner(sem);
         raw_spin_unlock_irqrestore(&sem->lock, flags);
 
         if(max_prio_waiter == NULL || random_runner == NULL) {
@@ -418,8 +422,8 @@ int __booster_thread_func(void *data) {
                 random_runner->task->pid,
                 random_runner->task->prio);
 
-        int before_boost_prio = random_runner->task->prio;
-        int max_prio = max_prio_waiter->task->prio;
+        before_boost_prio = random_runner->task->prio;
+        max_prio = max_prio_waiter->task->prio;
 
         random_runner->task->prio = max_prio;
 
@@ -488,9 +492,8 @@ static inline int __sched __my_down(struct my_semaphore *sem)
 //////////////////// syscalls ///////////////////
 void my_sem_init(struct my_semaphore *sem, int val)
 {
-    printk(KERN_INFO "## init start ##\n");
-
     static struct lock_class_key __key;
+    printk(KERN_INFO "## init start ##\n");
     *sem = (struct my_semaphore) __MY_SEMAPHORE_INITIALIZER(*sem, val);
     lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);	//TODO: in chiye?
 
@@ -501,8 +504,9 @@ void my_sem_init(struct my_semaphore *sem, int val)
 EXPORT_SYMBOL(my_sem_init);
 
 void my_sem_up(struct my_semaphore *sem) {
-    printk(KERN_INFO "## up start ##\n");
+
     unsigned long flags;
+    printk(KERN_INFO "## up start ##\n");
 
     raw_spin_lock_irqsave(&sem->lock, flags);
 
@@ -518,8 +522,9 @@ void my_sem_up(struct my_semaphore *sem) {
 EXPORT_SYMBOL(my_sem_up);
 
 void my_sem_down(struct my_semaphore *sem) {
-    printk(KERN_INFO "## down end ##\n");
+
     unsigned long flags;
+    printk(KERN_INFO "## down end ##\n");
 
     raw_spin_lock_irqsave(&sem->lock, flags);
 
@@ -535,8 +540,10 @@ void my_sem_down(struct my_semaphore *sem) {
 EXPORT_SYMBOL(my_sem_down);
 
 extern void my_sem_destroy(struct my_semaphore *sem) {
-    printk(KERN_INFO "## destroy start ##\n");
+
     unsigned long flags;
+    printk(KERN_INFO "## destroy start ##\n");
+
     raw_spin_lock_irqsave(&sem->lock, flags);
 
     kthread_stop(sem->booster);
