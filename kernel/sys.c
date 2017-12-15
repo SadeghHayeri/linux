@@ -2428,36 +2428,30 @@ COMPAT_SYSCALL_DEFINE1(sysinfo, struct compat_sysinfo __user *, info)
 
 	return 0;
 }
+#endif /* CONFIG_COMPAT */
 
 ///////////////  MY_SEM	///////////////
 #include <linux/semaphore.h>
 
-SYSCALL_DEFINE2(mysem_init, void*, mysem, int, value)
+SYSCALL_DEFINE1(mysem_init, int, value)
 {
-	struct my_semaphore *_mysem = (struct my_semaphore*)mysem;
-	my_sem_init(_mysem, value);
+	return my_sem_init(value);
+}
+
+SYSCALL_DEFINE1(mysem_up, int, sem_index)
+{
+	my_sem_down(sem_index);
 	return 0;
 }
 
-SYSCALL_DEFINE1(mysem_up, void*, mysem)
+SYSCALL_DEFINE1(mysem_down, int, sem_index)
 {
-	struct my_semaphore *_mysem = (struct my_semaphore*)mysem;
-	my_sem_down(_mysem);
+	my_sem_up(sem_index);
 	return 0;
 }
 
-SYSCALL_DEFINE1(mysem_down, void*, mysem)
+SYSCALL_DEFINE1(mysem_destroy, int, sem_index)
 {
-	struct my_semaphore *_mysem = (struct my_semaphore*)mysem;
-	my_sem_up(_mysem);
+	my_sem_destroy(sem_index);
 	return 0;
 }
-
-SYSCALL_DEFINE1(mysem_destroy, void*, mysem)
-{
-	struct my_semaphore *_mysem = (struct my_semaphore*)mysem;
-	my_sem_destroy(_mysem);
-	return 0;
-}
-
-#endif /* CONFIG_COMPAT */

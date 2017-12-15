@@ -58,6 +58,10 @@ struct my_semaphore {
 	struct task_struct	*booster;
 };
 
+#define MY_SEM_MAX_SIZE 100
+struct my_semaphore MY_SEMS[MY_SEM_MAX_SIZE];
+bool MY_SEM_INUSE[MY_SEM_MAX_SIZE];
+
 struct my_semaphore_list_items {
 	struct list_head list;
 	struct task_struct *task;
@@ -72,9 +76,9 @@ struct my_semaphore_list_items {
 	.run_list	= LIST_HEAD_INIT((name).run_list),		\
 }
 
-extern void my_sem_init(struct my_semaphore *sem, int val);
-extern void my_sem_down(struct my_semaphore *sem);
-extern void my_sem_up(struct my_semaphore *sem);
-extern void my_sem_destroy(struct my_semaphore *sem);
+extern int my_sem_init(int val);
+extern void my_sem_down(int sem_index);
+extern void my_sem_up(int sem_index);
+extern void my_sem_destroy(int sem_index);
 
 #endif /* __LINUX_SEMAPHORE_H */
