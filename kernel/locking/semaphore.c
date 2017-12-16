@@ -475,6 +475,7 @@ int __booster_thread_func(void *data) {
                 random_runner->task->prio);
         raw_spin_unlock_irqrestore(&sem->lock, flags);
     }
+    return 0;
 }
 ///////////////////////////////////////////////////////
 
