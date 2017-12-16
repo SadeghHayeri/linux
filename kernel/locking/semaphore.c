@@ -455,6 +455,7 @@ int __booster_thread_func(void *data) {
 
         if(before_boost_prio >= max_prio) {
             printk(KERN_INFO "# no need to boost :D\n");
+            raw_spin_unlock_irqrestore(&sem->lock, flags);
             continue;
         }
 
