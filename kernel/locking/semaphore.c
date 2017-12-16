@@ -315,15 +315,12 @@ struct my_semaphore_list_items* __find_max_prio_waiter(struct my_semaphore *sem)
 
     struct my_semaphore_list_items* pos;
     list_for_each_entry(pos, &sem->wait_list, list) {
-        printk(KERN_INFO "%% search (%d)\n", pos->task->prio);
-        if(max_prio >= pos->task->prio) {
-            printk(KERN_INFO "%% selected\n");
+        if(max_prio <= pos->task->prio) {
             max_prio = pos->task->prio;
             max_prio_item = pos;
         }
     }
 
-    printk(KERN_INFO "%% result: %d\n", max_prio_item);
     return max_prio_item;
 
 }
