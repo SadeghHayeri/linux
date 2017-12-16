@@ -332,10 +332,10 @@ static noinline void __sched __add_current_to_wait_list(struct my_semaphore *sem
     __add_to_list(&sem->wait_list, task, false);
 }
 
-//static noinline void __sched __remove_current_from_wait_list(struct my_semaphore *sem) {
-//    struct task_struct *task = current;
-//    __remove_from_list(&sem->wait_list, task);
-//}
+static noinline void __sched __remove_current_from_wait_list(struct my_semaphore *sem) {
+    struct task_struct *task = current;
+    __remove_from_list(&sem->wait_list, task);
+}
 
 static noinline void __sched __add_current_to_run_list(struct my_semaphore *sem) {
     struct task_struct *task = current;
@@ -499,29 +499,22 @@ static inline int __sched __my_down(struct my_semaphore *sem)
         __set_task_state(task, TASK_INTERRUPTIBLE);
         raw_spin_unlock_irq(&sem->lock);
         raw_spin_lock_irq(&sem->lock);
-
-
         item = __find_item(&sem->wait_list, task);
-        if(item == NULL || item->up)
+        if(item == NULL || item->up == true)
             goto ready_to_run;
     }
 
     interrupted:
-    __remove_current_from_run_list(sem);
-    __add_current_to_run_list(sem);
-    return -EINTR;
+        return -EINTR;
 
     ready_to_run:
-    __remove_current_from_run_list(sem);
-    __add_current_to_run_list(sem);
-    return -EINTR;
+        return -EINTR;
 }
 
 
 //////////////////// syscalls ///////////////////
 int my_sem_init(int val)
 {
-
     int* data;
     int free_sem;
     struct my_semaphore *sem;
@@ -571,15 +564,20 @@ EXPORT_SYMBOL(my_sem_up);
 void my_sem_down(int sem_index) {
     struct my_semaphore *sem = &MY_SEMS[sem_index];
     unsigned long flags;
-    printk(KERN_INFO "## down end ##\n");
+    printk(KERN_INFO "## down start ##\n");
 
     raw_spin_lock_irqsave(&sem->lock, flags);
 
-    __add_current_to_wait_list(sem);
-    if (likely(sem->count > 0))
-        sem->count--;
-    else
-        __my_down(sem);
+    if (likely(sem->count > 0)) {
+            __add_current_to_run_list(sem);
+            sem->count--;
+        }
+        else {
+            __add_current_to_wait_list(sem);
+            __my_down(sem); // sleep!
+            __remove_current_from_wait_list(sem);
+            __add_current_to_run_list(sem);
+    }
 
     raw_spin_unlock_irqrestore(&sem->lock, flags);
     printk(KERN_INFO "## down end ##\n");
