@@ -137,7 +137,7 @@ static bool set_one_prio_perm(struct task_struct *p)
 	const struct cred *cred = current_cred(), *pcred = __task_cred(p);
 
 	if (uid_eq(pcred->uid,  cred->euid) ||
-	    uid_eq(pcred->euid, cred->euid))
+		uid_eq(pcred->euid, cred->euid))
 		return true;
 	if (ns_capable(pcred->user_ns, CAP_SYS_NICE))
 		return true;
@@ -168,72 +168,72 @@ static int set_one_prio(struct task_struct *p, int niceval, int error)
 	if (error == -ESRCH)
 		error = 0;
 	set_user_nice(p, niceval);
-out:
+	out:
 	return error;
 }
 
 SYSCALL_DEFINE3(setpriority, int, which, int, who, int, niceval)
 {
-	struct task_struct *g, *p;
-	struct user_struct *user;
-	const struct cred *cred = current_cred();
-	int error = -EINVAL;
-	struct pid *pgrp;
-	kuid_t uid;
+struct task_struct *g, *p;
+struct user_struct *user;
+const struct cred *cred = current_cred();
+int error = -EINVAL;
+struct pid *pgrp;
+kuid_t uid;
 
-	if (which > PRIO_USER || which < PRIO_PROCESS)
-		goto out;
+if (which > PRIO_USER || which < PRIO_PROCESS)
+goto out;
 
-	/* normalize: avoid signed division (rounding problems) */
-	error = -ESRCH;
-	if (niceval < MIN_NICE)
-		niceval = MIN_NICE;
-	if (niceval > MAX_NICE)
-		niceval = MAX_NICE;
+/* normalize: avoid signed division (rounding problems) */
+error = -ESRCH;
+if (niceval < MIN_NICE)
+niceval = MIN_NICE;
+if (niceval > MAX_NICE)
+niceval = MAX_NICE;
 
-	rcu_read_lock();
-	read_lock(&tasklist_lock);
-	switch (which) {
-	case PRIO_PROCESS:
-		if (who)
-			p = find_task_by_vpid(who);
-		else
-			p = current;
-		if (p)
-			error = set_one_prio(p, niceval, error);
-		break;
-	case PRIO_PGRP:
-		if (who)
-			pgrp = find_vpid(who);
-		else
-			pgrp = task_pgrp(current);
-		do_each_pid_thread(pgrp, PIDTYPE_PGID, p) {
-			error = set_one_prio(p, niceval, error);
-		} while_each_pid_thread(pgrp, PIDTYPE_PGID, p);
-		break;
-	case PRIO_USER:
+rcu_read_lock();
+read_lock(&tasklist_lock);
+switch (which) {
+case PRIO_PROCESS:
+if (who)
+p = find_task_by_vpid(who);
+else
+p = current;
+if (p)
+error = set_one_prio(p, niceval, error);
+break;
+case PRIO_PGRP:
+if (who)
+pgrp = find_vpid(who);
+else
+pgrp = task_pgrp(current);
+do_each_pid_thread(pgrp, PIDTYPE_PGID, p) {
+error = set_one_prio(p, niceval, error);
+} while_each_pid_thread(pgrp, PIDTYPE_PGID, p);
+break;
+case PRIO_USER:
 		uid = make_kuid(cred->user_ns, who);
-		user = cred->user;
-		if (!who)
-			uid = cred->uid;
-		else if (!uid_eq(uid, cred->uid)) {
-			user = find_user(uid);
-			if (!user)
-				goto out_unlock;	/* No processes for this user */
-		}
-		do_each_thread(g, p) {
-			if (uid_eq(task_uid(p), uid) && task_pid_vnr(p))
-				error = set_one_prio(p, niceval, error);
-		} while_each_thread(g, p);
-		if (!uid_eq(uid, cred->uid))
-			free_uid(user);		/* For find_user() */
-		break;
-	}
+user = cred->user;
+if (!who)
+uid = cred->uid;
+else if (!uid_eq(uid, cred->uid)) {
+user = find_user(uid);
+if (!user)
+goto out_unlock;	/* No processes for this user */
+}
+do_each_thread(g, p) {
+if (uid_eq(task_uid(p), uid) && task_pid_vnr(p))
+error = set_one_prio(p, niceval, error);
+} while_each_thread(g, p);
+if (!uid_eq(uid, cred->uid))
+free_uid(user);		/* For find_user() */
+break;
+}
 out_unlock:
-	read_unlock(&tasklist_lock);
-	rcu_read_unlock();
+		read_unlock(&tasklist_lock);
+rcu_read_unlock();
 out:
-	return error;
+return error;
 }
 
 /*
@@ -244,67 +244,67 @@ out:
  */
 SYSCALL_DEFINE2(getpriority, int, which, int, who)
 {
-	struct task_struct *g, *p;
-	struct user_struct *user;
-	const struct cred *cred = current_cred();
-	long niceval, retval = -ESRCH;
-	struct pid *pgrp;
-	kuid_t uid;
+struct task_struct *g, *p;
+struct user_struct *user;
+const struct cred *cred = current_cred();
+long niceval, retval = -ESRCH;
+struct pid *pgrp;
+kuid_t uid;
 
-	if (which > PRIO_USER || which < PRIO_PROCESS)
-		return -EINVAL;
+if (which > PRIO_USER || which < PRIO_PROCESS)
+return -EINVAL;
 
-	rcu_read_lock();
-	read_lock(&tasklist_lock);
-	switch (which) {
-	case PRIO_PROCESS:
-		if (who)
-			p = find_task_by_vpid(who);
-		else
-			p = current;
-		if (p) {
-			niceval = nice_to_rlimit(task_nice(p));
-			if (niceval > retval)
-				retval = niceval;
-		}
-		break;
-	case PRIO_PGRP:
-		if (who)
-			pgrp = find_vpid(who);
-		else
-			pgrp = task_pgrp(current);
-		do_each_pid_thread(pgrp, PIDTYPE_PGID, p) {
-			niceval = nice_to_rlimit(task_nice(p));
-			if (niceval > retval)
-				retval = niceval;
-		} while_each_pid_thread(pgrp, PIDTYPE_PGID, p);
-		break;
-	case PRIO_USER:
+rcu_read_lock();
+read_lock(&tasklist_lock);
+switch (which) {
+case PRIO_PROCESS:
+if (who)
+p = find_task_by_vpid(who);
+else
+p = current;
+if (p) {
+niceval = nice_to_rlimit(task_nice(p));
+if (niceval > retval)
+retval = niceval;
+}
+break;
+case PRIO_PGRP:
+if (who)
+pgrp = find_vpid(who);
+else
+pgrp = task_pgrp(current);
+do_each_pid_thread(pgrp, PIDTYPE_PGID, p) {
+niceval = nice_to_rlimit(task_nice(p));
+if (niceval > retval)
+retval = niceval;
+} while_each_pid_thread(pgrp, PIDTYPE_PGID, p);
+break;
+case PRIO_USER:
 		uid = make_kuid(cred->user_ns, who);
-		user = cred->user;
-		if (!who)
-			uid = cred->uid;
-		else if (!uid_eq(uid, cred->uid)) {
-			user = find_user(uid);
-			if (!user)
-				goto out_unlock;	/* No processes for this user */
-		}
-		do_each_thread(g, p) {
-			if (uid_eq(task_uid(p), uid) && task_pid_vnr(p)) {
-				niceval = nice_to_rlimit(task_nice(p));
-				if (niceval > retval)
-					retval = niceval;
-			}
-		} while_each_thread(g, p);
-		if (!uid_eq(uid, cred->uid))
-			free_uid(user);		/* for find_user() */
-		break;
-	}
+user = cred->user;
+if (!who)
+uid = cred->uid;
+else if (!uid_eq(uid, cred->uid)) {
+user = find_user(uid);
+if (!user)
+goto out_unlock;	/* No processes for this user */
+}
+do_each_thread(g, p) {
+if (uid_eq(task_uid(p), uid) && task_pid_vnr(p)) {
+niceval = nice_to_rlimit(task_nice(p));
+if (niceval > retval)
+retval = niceval;
+}
+} while_each_thread(g, p);
+if (!uid_eq(uid, cred->uid))
+free_uid(user);		/* for find_user() */
+break;
+}
 out_unlock:
-	read_unlock(&tasklist_lock);
-	rcu_read_unlock();
+		read_unlock(&tasklist_lock);
+rcu_read_unlock();
 
-	return retval;
+return retval;
 }
 
 /*
@@ -828,15 +828,15 @@ change_okay:
  * This is SMP safe as current->tgid does not change.
  */
 SYSCALL_DEFINE0(getpid)
-{
-	return task_tgid_vnr(current);
-}
+		{
+				return task_tgid_vnr(current);
+		}
 
 /* Thread ID - the internal kernel "pid" */
 SYSCALL_DEFINE0(gettid)
-{
-	return task_pid_vnr(current);
-}
+		{
+				return task_pid_vnr(current);
+		}
 
 /*
  * Accessing ->real_parent is not SMP-safe, it could
@@ -845,39 +845,39 @@ SYSCALL_DEFINE0(gettid)
  * release_task()->call_rcu(delayed_put_task_struct).
  */
 SYSCALL_DEFINE0(getppid)
-{
-	int pid;
+		{
+				int pid;
 
-	rcu_read_lock();
-	pid = task_tgid_vnr(rcu_dereference(current->real_parent));
-	rcu_read_unlock();
+		rcu_read_lock();
+		pid = task_tgid_vnr(rcu_dereference(current->real_parent));
+		rcu_read_unlock();
 
-	return pid;
-}
+		return pid;
+		}
 
 SYSCALL_DEFINE0(getuid)
-{
-	/* Only we change this so SMP safe */
-	return from_kuid_munged(current_user_ns(), current_uid());
-}
+		{
+				/* Only we change this so SMP safe */
+				return from_kuid_munged(current_user_ns(), current_uid());
+		}
 
 SYSCALL_DEFINE0(geteuid)
-{
-	/* Only we change this so SMP safe */
-	return from_kuid_munged(current_user_ns(), current_euid());
-}
+		{
+				/* Only we change this so SMP safe */
+				return from_kuid_munged(current_user_ns(), current_euid());
+		}
 
 SYSCALL_DEFINE0(getgid)
-{
-	/* Only we change this so SMP safe */
-	return from_kgid_munged(current_user_ns(), current_gid());
-}
+		{
+				/* Only we change this so SMP safe */
+				return from_kgid_munged(current_user_ns(), current_gid());
+		}
 
 SYSCALL_DEFINE0(getegid)
-{
-	/* Only we change this so SMP safe */
-	return from_kgid_munged(current_user_ns(), current_egid());
-}
+		{
+				/* Only we change this so SMP safe */
+				return from_kgid_munged(current_user_ns(), current_egid());
+		}
 
 void do_sys_times(struct tms *tms)
 {
@@ -894,15 +894,15 @@ void do_sys_times(struct tms *tms)
 
 SYSCALL_DEFINE1(times, struct tms __user *, tbuf)
 {
-	if (tbuf) {
-		struct tms tmp;
+if (tbuf) {
+struct tms tmp;
 
-		do_sys_times(&tmp);
-		if (copy_to_user(tbuf, &tmp, sizeof(struct tms)))
-			return -EFAULT;
-	}
-	force_successful_syscall_return();
-	return (long) jiffies_64_to_clock_t(get_jiffies_64());
+do_sys_times(&tmp);
+if (copy_to_user(tbuf, &tmp, sizeof(struct tms)))
+return -EFAULT;
+}
+force_successful_syscall_return();
+return (long) jiffies_64_to_clock_t(get_jiffies_64());
 }
 
 /*
@@ -918,101 +918,101 @@ SYSCALL_DEFINE1(times, struct tms __user *, tbuf)
  */
 SYSCALL_DEFINE2(setpgid, pid_t, pid, pid_t, pgid)
 {
-	struct task_struct *p;
-	struct task_struct *group_leader = current->group_leader;
-	struct pid *pgrp;
-	int err;
+struct task_struct *p;
+struct task_struct *group_leader = current->group_leader;
+struct pid *pgrp;
+int err;
 
-	if (!pid)
-		pid = task_pid_vnr(group_leader);
-	if (!pgid)
-		pgid = pid;
-	if (pgid < 0)
-		return -EINVAL;
-	rcu_read_lock();
+if (!pid)
+pid = task_pid_vnr(group_leader);
+if (!pgid)
+pgid = pid;
+if (pgid < 0)
+return -EINVAL;
+rcu_read_lock();
 
-	/* From this point forward we keep holding onto the tasklist lock
-	 * so that our parent does not change from under us. -DaveM
-	 */
-	write_lock_irq(&tasklist_lock);
+/* From this point forward we keep holding onto the tasklist lock
+ * so that our parent does not change from under us. -DaveM
+ */
+write_lock_irq(&tasklist_lock);
 
-	err = -ESRCH;
-	p = find_task_by_vpid(pid);
-	if (!p)
-		goto out;
+err = -ESRCH;
+p = find_task_by_vpid(pid);
+if (!p)
+goto out;
 
-	err = -EINVAL;
-	if (!thread_group_leader(p))
-		goto out;
+err = -EINVAL;
+if (!thread_group_leader(p))
+goto out;
 
-	if (same_thread_group(p->real_parent, group_leader)) {
-		err = -EPERM;
-		if (task_session(p) != task_session(group_leader))
-			goto out;
-		err = -EACCES;
-		if (!(p->flags & PF_FORKNOEXEC))
-			goto out;
-	} else {
-		err = -ESRCH;
-		if (p != group_leader)
-			goto out;
-	}
+if (same_thread_group(p->real_parent, group_leader)) {
+err = -EPERM;
+if (task_session(p) != task_session(group_leader))
+goto out;
+err = -EACCES;
+if (!(p->flags & PF_FORKNOEXEC))
+goto out;
+} else {
+err = -ESRCH;
+if (p != group_leader)
+goto out;
+}
 
-	err = -EPERM;
-	if (p->signal->leader)
-		goto out;
+err = -EPERM;
+if (p->signal->leader)
+goto out;
 
-	pgrp = task_pid(p);
-	if (pgid != pid) {
-		struct task_struct *g;
+pgrp = task_pid(p);
+if (pgid != pid) {
+struct task_struct *g;
 
-		pgrp = find_vpid(pgid);
-		g = pid_task(pgrp, PIDTYPE_PGID);
-		if (!g || task_session(g) != task_session(group_leader))
-			goto out;
-	}
+pgrp = find_vpid(pgid);
+g = pid_task(pgrp, PIDTYPE_PGID);
+if (!g || task_session(g) != task_session(group_leader))
+goto out;
+}
 
-	err = security_task_setpgid(p, pgid);
-	if (err)
-		goto out;
+err = security_task_setpgid(p, pgid);
+if (err)
+goto out;
 
-	if (task_pgrp(p) != pgrp)
-		change_pid(p, PIDTYPE_PGID, pgrp);
+if (task_pgrp(p) != pgrp)
+change_pid(p, PIDTYPE_PGID, pgrp);
 
-	err = 0;
+err = 0;
 out:
-	/* All paths lead to here, thus we are safe. -DaveM */
-	write_unlock_irq(&tasklist_lock);
-	rcu_read_unlock();
-	return err;
+/* All paths lead to here, thus we are safe. -DaveM */
+		write_unlock_irq(&tasklist_lock);
+rcu_read_unlock();
+return err;
 }
 
 SYSCALL_DEFINE1(getpgid, pid_t, pid)
 {
-	struct task_struct *p;
-	struct pid *grp;
-	int retval;
+struct task_struct *p;
+struct pid *grp;
+int retval;
 
-	rcu_read_lock();
-	if (!pid)
-		grp = task_pgrp(current);
-	else {
-		retval = -ESRCH;
-		p = find_task_by_vpid(pid);
-		if (!p)
-			goto out;
-		grp = task_pgrp(p);
-		if (!grp)
-			goto out;
+rcu_read_lock();
+if (!pid)
+grp = task_pgrp(current);
+else {
+retval = -ESRCH;
+p = find_task_by_vpid(pid);
+if (!p)
+goto out;
+grp = task_pgrp(p);
+if (!grp)
+goto out;
 
-		retval = security_task_getpgid(p);
-		if (retval)
-			goto out;
-	}
-	retval = pid_vnr(grp);
+retval = security_task_getpgid(p);
+if (retval)
+goto out;
+}
+retval = pid_vnr(grp);
 out:
-	rcu_read_unlock();
-	return retval;
+		rcu_read_unlock();
+return retval;
 }
 
 #ifdef __ARCH_WANT_SYS_GETPGRP
@@ -1026,30 +1026,30 @@ SYSCALL_DEFINE0(getpgrp)
 
 SYSCALL_DEFINE1(getsid, pid_t, pid)
 {
-	struct task_struct *p;
-	struct pid *sid;
-	int retval;
+struct task_struct *p;
+struct pid *sid;
+int retval;
 
-	rcu_read_lock();
-	if (!pid)
-		sid = task_session(current);
-	else {
-		retval = -ESRCH;
-		p = find_task_by_vpid(pid);
-		if (!p)
-			goto out;
-		sid = task_session(p);
-		if (!sid)
-			goto out;
+rcu_read_lock();
+if (!pid)
+sid = task_session(current);
+else {
+retval = -ESRCH;
+p = find_task_by_vpid(pid);
+if (!p)
+goto out;
+sid = task_session(p);
+if (!sid)
+goto out;
 
-		retval = security_task_getsid(p);
-		if (retval)
-			goto out;
-	}
-	retval = pid_vnr(sid);
+retval = security_task_getsid(p);
+if (retval)
+goto out;
+}
+retval = pid_vnr(sid);
 out:
-	rcu_read_unlock();
-	return retval;
+		rcu_read_unlock();
+return retval;
 }
 
 static void set_special_pids(struct pid *pid)
@@ -1064,37 +1064,37 @@ static void set_special_pids(struct pid *pid)
 }
 
 SYSCALL_DEFINE0(setsid)
-{
-	struct task_struct *group_leader = current->group_leader;
-	struct pid *sid = task_pid(group_leader);
-	pid_t session = pid_vnr(sid);
-	int err = -EPERM;
+		{
+				struct task_struct *group_leader = current->group_leader;
+				struct pid *sid = task_pid(group_leader);
+				pid_t session = pid_vnr(sid);
+				int err = -EPERM;
 
-	write_lock_irq(&tasklist_lock);
-	/* Fail if I am already a session leader */
-	if (group_leader->signal->leader)
-		goto out;
+				write_lock_irq(&tasklist_lock);
+				/* Fail if I am already a session leader */
+				if (group_leader->signal->leader)
+				goto out;
 
-	/* Fail if a process group id already exists that equals the
-	 * proposed session id.
-	 */
-	if (pid_task(sid, PIDTYPE_PGID))
-		goto out;
+				/* Fail if a process group id already exists that equals the
+                 * proposed session id.
+                 */
+				if (pid_task(sid, PIDTYPE_PGID))
+				goto out;
 
-	group_leader->signal->leader = 1;
-	set_special_pids(sid);
+				group_leader->signal->leader = 1;
+				set_special_pids(sid);
 
-	proc_clear_tty(group_leader);
+				proc_clear_tty(group_leader);
 
-	err = session;
-out:
-	write_unlock_irq(&tasklist_lock);
-	if (err > 0) {
-		proc_sid_connector(group_leader);
-		sched_autogroup_create_attach(group_leader);
-	}
-	return err;
-}
+				err = session;
+				out:
+				write_unlock_irq(&tasklist_lock);
+				if (err > 0) {
+					proc_sid_connector(group_leader);
+					sched_autogroup_create_attach(group_leader);
+				}
+				return err;
+		}
 
 DECLARE_RWSEM(uts_sem);
 
@@ -1114,44 +1114,44 @@ DECLARE_RWSEM(uts_sem);
  */
 static int override_release(char __user *release, size_t len)
 {
-	int ret = 0;
+int ret = 0;
 
-	if (current->personality & UNAME26) {
-		const char *rest = UTS_RELEASE;
-		char buf[65] = { 0 };
-		int ndots = 0;
-		unsigned v;
-		size_t copy;
+if (current->personality & UNAME26) {
+const char *rest = UTS_RELEASE;
+char buf[65] = { 0 };
+int ndots = 0;
+unsigned v;
+size_t copy;
 
-		while (*rest) {
-			if (*rest == '.' && ++ndots >= 3)
-				break;
-			if (!isdigit(*rest) && *rest != '.')
-				break;
-			rest++;
-		}
-		v = ((LINUX_VERSION_CODE >> 8) & 0xff) + 60;
-		copy = clamp_t(size_t, len, 1, sizeof(buf));
-		copy = scnprintf(buf, copy, "2.6.%u%s", v, rest);
-		ret = copy_to_user(release, buf, copy + 1);
-	}
-	return ret;
+while (*rest) {
+if (*rest == '.' && ++ndots >= 3)
+break;
+if (!isdigit(*rest) && *rest != '.')
+break;
+rest++;
+}
+v = ((LINUX_VERSION_CODE >> 8) & 0xff) + 60;
+copy = clamp_t(size_t, len, 1, sizeof(buf));
+copy = scnprintf(buf, copy, "2.6.%u%s", v, rest);
+ret = copy_to_user(release, buf, copy + 1);
+}
+return ret;
 }
 
 SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 {
-	int errno = 0;
+int errno = 0;
 
-	down_read(&uts_sem);
-	if (copy_to_user(name, utsname(), sizeof *name))
-		errno = -EFAULT;
-	up_read(&uts_sem);
+down_read(&uts_sem);
+if (copy_to_user(name, utsname(), sizeof *name))
+errno = -EFAULT;
+up_read(&uts_sem);
 
-	if (!errno && override_release(name->release, sizeof(name->release)))
-		errno = -EFAULT;
-	if (!errno && override_architecture(name))
-		errno = -EFAULT;
-	return errno;
+if (!errno && override_release(name->release, sizeof(name->release)))
+errno = -EFAULT;
+if (!errno && override_architecture(name))
+errno = -EFAULT;
+return errno;
 }
 
 #ifdef __ARCH_WANT_SYS_OLD_UNAME
@@ -1214,26 +1214,26 @@ SYSCALL_DEFINE1(olduname, struct oldold_utsname __user *, name)
 
 SYSCALL_DEFINE2(sethostname, char __user *, name, int, len)
 {
-	int errno;
-	char tmp[__NEW_UTS_LEN];
+int errno;
+char tmp[__NEW_UTS_LEN];
 
-	if (!ns_capable(current->nsproxy->uts_ns->user_ns, CAP_SYS_ADMIN))
-		return -EPERM;
+if (!ns_capable(current->nsproxy->uts_ns->user_ns, CAP_SYS_ADMIN))
+return -EPERM;
 
-	if (len < 0 || len > __NEW_UTS_LEN)
-		return -EINVAL;
-	down_write(&uts_sem);
-	errno = -EFAULT;
-	if (!copy_from_user(tmp, name, len)) {
-		struct new_utsname *u = utsname();
+if (len < 0 || len > __NEW_UTS_LEN)
+return -EINVAL;
+down_write(&uts_sem);
+errno = -EFAULT;
+if (!copy_from_user(tmp, name, len)) {
+struct new_utsname *u = utsname();
 
-		memcpy(u->nodename, tmp, len);
-		memset(u->nodename + len, 0, sizeof(u->nodename) - len);
-		errno = 0;
-		uts_proc_notify(UTS_PROC_HOSTNAME);
-	}
-	up_write(&uts_sem);
-	return errno;
+memcpy(u->nodename, tmp, len);
+memset(u->nodename + len, 0, sizeof(u->nodename) - len);
+errno = 0;
+uts_proc_notify(UTS_PROC_HOSTNAME);
+}
+up_write(&uts_sem);
+return errno;
 }
 
 #ifdef __ARCH_WANT_SYS_GETHOSTNAME
@@ -1265,38 +1265,38 @@ SYSCALL_DEFINE2(gethostname, char __user *, name, int, len)
  */
 SYSCALL_DEFINE2(setdomainname, char __user *, name, int, len)
 {
-	int errno;
-	char tmp[__NEW_UTS_LEN];
+int errno;
+char tmp[__NEW_UTS_LEN];
 
-	if (!ns_capable(current->nsproxy->uts_ns->user_ns, CAP_SYS_ADMIN))
-		return -EPERM;
-	if (len < 0 || len > __NEW_UTS_LEN)
-		return -EINVAL;
+if (!ns_capable(current->nsproxy->uts_ns->user_ns, CAP_SYS_ADMIN))
+return -EPERM;
+if (len < 0 || len > __NEW_UTS_LEN)
+return -EINVAL;
 
-	down_write(&uts_sem);
-	errno = -EFAULT;
-	if (!copy_from_user(tmp, name, len)) {
-		struct new_utsname *u = utsname();
+down_write(&uts_sem);
+errno = -EFAULT;
+if (!copy_from_user(tmp, name, len)) {
+struct new_utsname *u = utsname();
 
-		memcpy(u->domainname, tmp, len);
-		memset(u->domainname + len, 0, sizeof(u->domainname) - len);
-		errno = 0;
-		uts_proc_notify(UTS_PROC_DOMAINNAME);
-	}
-	up_write(&uts_sem);
-	return errno;
+memcpy(u->domainname, tmp, len);
+memset(u->domainname + len, 0, sizeof(u->domainname) - len);
+errno = 0;
+uts_proc_notify(UTS_PROC_DOMAINNAME);
+}
+up_write(&uts_sem);
+return errno;
 }
 
 SYSCALL_DEFINE2(getrlimit, unsigned int, resource, struct rlimit __user *, rlim)
 {
-	struct rlimit value;
-	int ret;
+struct rlimit value;
+int ret;
 
-	ret = do_prlimit(current, resource, NULL, &value);
-	if (!ret)
-		ret = copy_to_user(rlim, &value, sizeof(*rlim)) ? -EFAULT : 0;
+ret = do_prlimit(current, resource, NULL, &value);
+if (!ret)
+ret = copy_to_user(rlim, &value, sizeof(*rlim)) ? -EFAULT : 0;
 
-	return ret;
+return ret;
 }
 
 #ifdef __ARCH_WANT_SYS_OLD_GETRLIMIT
@@ -1358,7 +1358,7 @@ static void rlim64_to_rlim(const struct rlimit64 *rlim64, struct rlimit *rlim)
 
 /* make sure you are allowed to change @tsk limits before calling this */
 int do_prlimit(struct task_struct *tsk, unsigned int resource,
-		struct rlimit *new_rlim, struct rlimit *old_rlim)
+			   struct rlimit *new_rlim, struct rlimit *old_rlim)
 {
 	struct rlimit *rlim;
 	int retval = 0;
@@ -1369,7 +1369,7 @@ int do_prlimit(struct task_struct *tsk, unsigned int resource,
 		if (new_rlim->rlim_cur > new_rlim->rlim_max)
 			return -EINVAL;
 		if (resource == RLIMIT_NOFILE &&
-				new_rlim->rlim_max > sysctl_nr_open)
+			new_rlim->rlim_max > sysctl_nr_open)
 			return -EPERM;
 	}
 
@@ -1386,11 +1386,11 @@ int do_prlimit(struct task_struct *tsk, unsigned int resource,
 		/* Keep the capable check against init_user_ns until
 		   cgroups can contain all limits */
 		if (new_rlim->rlim_max > rlim->rlim_max &&
-				!capable(CAP_SYS_RESOURCE))
+			!capable(CAP_SYS_RESOURCE))
 			retval = -EPERM;
 		if (!retval)
 			retval = security_task_setrlimit(tsk->group_leader,
-					resource, new_rlim);
+											 resource, new_rlim);
 		if (resource == RLIMIT_CPU && new_rlim->rlim_cur == 0) {
 			/*
 			 * The caller is asking for an immediate RLIMIT_CPU
@@ -1415,10 +1415,10 @@ int do_prlimit(struct task_struct *tsk, unsigned int resource,
 	 * very long-standing error, and fixing it now risks breakage of
 	 * applications, so we live with it
 	 */
-	 if (!retval && new_rlim && resource == RLIMIT_CPU &&
-			 new_rlim->rlim_cur != RLIM_INFINITY)
+	if (!retval && new_rlim && resource == RLIMIT_CPU &&
+		new_rlim->rlim_cur != RLIM_INFINITY)
 		update_rlimit_cpu(tsk, new_rlim->rlim_cur);
-out:
+	out:
 	read_unlock(&tasklist_lock);
 	return retval;
 }
@@ -1433,11 +1433,11 @@ static int check_prlimit_permission(struct task_struct *task)
 
 	tcred = __task_cred(task);
 	if (uid_eq(cred->uid, tcred->euid) &&
-	    uid_eq(cred->uid, tcred->suid) &&
-	    uid_eq(cred->uid, tcred->uid)  &&
-	    gid_eq(cred->gid, tcred->egid) &&
-	    gid_eq(cred->gid, tcred->sgid) &&
-	    gid_eq(cred->gid, tcred->gid))
+		uid_eq(cred->uid, tcred->suid) &&
+		uid_eq(cred->uid, tcred->uid)  &&
+		gid_eq(cred->gid, tcred->egid) &&
+		gid_eq(cred->gid, tcred->sgid) &&
+		gid_eq(cred->gid, tcred->gid))
 		return 0;
 	if (ns_capable(tcred->user_ns, CAP_SYS_RESOURCE))
 		return 0;
@@ -1446,54 +1446,54 @@ static int check_prlimit_permission(struct task_struct *task)
 }
 
 SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
-		const struct rlimit64 __user *, new_rlim,
-		struct rlimit64 __user *, old_rlim)
+const struct rlimit64 __user *, new_rlim,
+struct rlimit64 __user *, old_rlim)
 {
-	struct rlimit64 old64, new64;
-	struct rlimit old, new;
-	struct task_struct *tsk;
-	int ret;
+struct rlimit64 old64, new64;
+struct rlimit old, new;
+struct task_struct *tsk;
+int ret;
 
-	if (new_rlim) {
-		if (copy_from_user(&new64, new_rlim, sizeof(new64)))
-			return -EFAULT;
-		rlim64_to_rlim(&new64, &new);
-	}
+if (new_rlim) {
+if (copy_from_user(&new64, new_rlim, sizeof(new64)))
+return -EFAULT;
+rlim64_to_rlim(&new64, &new);
+}
 
-	rcu_read_lock();
-	tsk = pid ? find_task_by_vpid(pid) : current;
-	if (!tsk) {
-		rcu_read_unlock();
-		return -ESRCH;
-	}
-	ret = check_prlimit_permission(tsk);
-	if (ret) {
-		rcu_read_unlock();
-		return ret;
-	}
-	get_task_struct(tsk);
-	rcu_read_unlock();
+rcu_read_lock();
+tsk = pid ? find_task_by_vpid(pid) : current;
+if (!tsk) {
+rcu_read_unlock();
+return -ESRCH;
+}
+ret = check_prlimit_permission(tsk);
+if (ret) {
+rcu_read_unlock();
+return ret;
+}
+get_task_struct(tsk);
+rcu_read_unlock();
 
-	ret = do_prlimit(tsk, resource, new_rlim ? &new : NULL,
-			old_rlim ? &old : NULL);
+ret = do_prlimit(tsk, resource, new_rlim ? &new : NULL,
+				 old_rlim ? &old : NULL);
 
-	if (!ret && old_rlim) {
-		rlim_to_rlim64(&old, &old64);
-		if (copy_to_user(old_rlim, &old64, sizeof(old64)))
-			ret = -EFAULT;
-	}
+if (!ret && old_rlim) {
+rlim_to_rlim64(&old, &old64);
+if (copy_to_user(old_rlim, &old64, sizeof(old64)))
+ret = -EFAULT;
+}
 
-	put_task_struct(tsk);
-	return ret;
+put_task_struct(tsk);
+return ret;
 }
 
 SYSCALL_DEFINE2(setrlimit, unsigned int, resource, struct rlimit __user *, rlim)
 {
-	struct rlimit new_rlim;
+struct rlimit new_rlim;
 
-	if (copy_from_user(&new_rlim, rlim, sizeof(*rlim)))
-		return -EFAULT;
-	return do_prlimit(current, resource, &new_rlim, NULL);
+if (copy_from_user(&new_rlim, rlim, sizeof(*rlim)))
+return -EFAULT;
+return do_prlimit(current, resource, &new_rlim, NULL);
 }
 
 /*
@@ -1560,45 +1560,45 @@ static void k_getrusage(struct task_struct *p, int who, struct rusage *r)
 		return;
 
 	switch (who) {
-	case RUSAGE_BOTH:
-	case RUSAGE_CHILDREN:
-		utime = p->signal->cutime;
-		stime = p->signal->cstime;
-		r->ru_nvcsw = p->signal->cnvcsw;
-		r->ru_nivcsw = p->signal->cnivcsw;
-		r->ru_minflt = p->signal->cmin_flt;
-		r->ru_majflt = p->signal->cmaj_flt;
-		r->ru_inblock = p->signal->cinblock;
-		r->ru_oublock = p->signal->coublock;
-		maxrss = p->signal->cmaxrss;
+		case RUSAGE_BOTH:
+		case RUSAGE_CHILDREN:
+			utime = p->signal->cutime;
+			stime = p->signal->cstime;
+			r->ru_nvcsw = p->signal->cnvcsw;
+			r->ru_nivcsw = p->signal->cnivcsw;
+			r->ru_minflt = p->signal->cmin_flt;
+			r->ru_majflt = p->signal->cmaj_flt;
+			r->ru_inblock = p->signal->cinblock;
+			r->ru_oublock = p->signal->coublock;
+			maxrss = p->signal->cmaxrss;
 
-		if (who == RUSAGE_CHILDREN)
+			if (who == RUSAGE_CHILDREN)
+				break;
+
+		case RUSAGE_SELF:
+			thread_group_cputime_adjusted(p, &tgutime, &tgstime);
+			utime += tgutime;
+			stime += tgstime;
+			r->ru_nvcsw += p->signal->nvcsw;
+			r->ru_nivcsw += p->signal->nivcsw;
+			r->ru_minflt += p->signal->min_flt;
+			r->ru_majflt += p->signal->maj_flt;
+			r->ru_inblock += p->signal->inblock;
+			r->ru_oublock += p->signal->oublock;
+			if (maxrss < p->signal->maxrss)
+				maxrss = p->signal->maxrss;
+			t = p;
+			do {
+				accumulate_thread_rusage(t, r);
+			} while_each_thread(p, t);
 			break;
 
-	case RUSAGE_SELF:
-		thread_group_cputime_adjusted(p, &tgutime, &tgstime);
-		utime += tgutime;
-		stime += tgstime;
-		r->ru_nvcsw += p->signal->nvcsw;
-		r->ru_nivcsw += p->signal->nivcsw;
-		r->ru_minflt += p->signal->min_flt;
-		r->ru_majflt += p->signal->maj_flt;
-		r->ru_inblock += p->signal->inblock;
-		r->ru_oublock += p->signal->oublock;
-		if (maxrss < p->signal->maxrss)
-			maxrss = p->signal->maxrss;
-		t = p;
-		do {
-			accumulate_thread_rusage(t, r);
-		} while_each_thread(p, t);
-		break;
-
-	default:
-		BUG();
+		default:
+			BUG();
 	}
 	unlock_task_sighand(p, &flags);
 
-out:
+	out:
 	cputime_to_timeval(utime, &r->ru_utime);
 	cputime_to_timeval(stime, &r->ru_stime);
 
@@ -1615,18 +1615,18 @@ out:
 
 int getrusage(struct task_struct *p, int who, struct rusage __user *ru)
 {
-	struct rusage r;
+struct rusage r;
 
-	k_getrusage(p, who, &r);
-	return copy_to_user(ru, &r, sizeof(r)) ? -EFAULT : 0;
+k_getrusage(p, who, &r);
+return copy_to_user(ru, &r, sizeof(r)) ? -EFAULT : 0;
 }
 
 SYSCALL_DEFINE2(getrusage, int, who, struct rusage __user *, ru)
 {
-	if (who != RUSAGE_SELF && who != RUSAGE_CHILDREN &&
-	    who != RUSAGE_THREAD)
-		return -EINVAL;
-	return getrusage(current, who, ru);
+if (who != RUSAGE_SELF && who != RUSAGE_CHILDREN &&
+		who != RUSAGE_THREAD)
+return -EINVAL;
+return getrusage(current, who, ru);
 }
 
 #ifdef CONFIG_COMPAT
@@ -1645,8 +1645,8 @@ COMPAT_SYSCALL_DEFINE2(getrusage, int, who, struct compat_rusage __user *, ru)
 
 SYSCALL_DEFINE1(umask, int, mask)
 {
-	mask = xchg(&current->fs->umask, mask & S_IRWXUGO);
-	return mask;
+mask = xchg(&current->fs->umask, mask & S_IRWXUGO);
+return mask;
 }
 
 static int prctl_set_mm_exe_file(struct mm_struct *mm, unsigned int fd)
@@ -1688,7 +1688,7 @@ static int prctl_set_mm_exe_file(struct mm_struct *mm, unsigned int fd)
 			if (!vma->vm_file)
 				continue;
 			if (path_equal(&vma->vm_file->f_path,
-				       &exe_file->f_path))
+						   &exe_file->f_path))
 				goto exit_err;
 		}
 
@@ -1712,10 +1712,10 @@ static int prctl_set_mm_exe_file(struct mm_struct *mm, unsigned int fd)
 	old_exe = xchg(&mm->exe_file, exe.file);
 	if (old_exe)
 		fput(old_exe);
-exit:
+	exit:
 	fdput(exe);
 	return err;
-exit_err:
+	exit_err:
 	up_read(&mm->mmap_sem);
 	fput(exe_file);
 	goto exit;
@@ -1732,17 +1732,17 @@ static int validate_prctl_map(struct prctl_mm_map *prctl_map)
 	int error = -EINVAL, i;
 
 	static const unsigned char offsets[] = {
-		offsetof(struct prctl_mm_map, start_code),
-		offsetof(struct prctl_mm_map, end_code),
-		offsetof(struct prctl_mm_map, start_data),
-		offsetof(struct prctl_mm_map, end_data),
-		offsetof(struct prctl_mm_map, start_brk),
-		offsetof(struct prctl_mm_map, brk),
-		offsetof(struct prctl_mm_map, start_stack),
-		offsetof(struct prctl_mm_map, arg_start),
-		offsetof(struct prctl_mm_map, arg_end),
-		offsetof(struct prctl_mm_map, env_start),
-		offsetof(struct prctl_mm_map, env_end),
+			offsetof(struct prctl_mm_map, start_code),
+			offsetof(struct prctl_mm_map, end_code),
+			offsetof(struct prctl_mm_map, start_data),
+			offsetof(struct prctl_mm_map, end_data),
+			offsetof(struct prctl_mm_map, start_brk),
+			offsetof(struct prctl_mm_map, brk),
+			offsetof(struct prctl_mm_map, start_stack),
+			offsetof(struct prctl_mm_map, arg_start),
+			offsetof(struct prctl_mm_map, arg_end),
+			offsetof(struct prctl_mm_map, env_start),
+			offsetof(struct prctl_mm_map, env_end),
 	};
 
 	/*
@@ -1753,7 +1753,7 @@ static int validate_prctl_map(struct prctl_mm_map *prctl_map)
 		u64 val = *(u64 *)((char *)prctl_map + offsets[i]);
 
 		if ((unsigned long)val >= mmap_max_addr ||
-		    (unsigned long)val < mmap_min_addr)
+			(unsigned long)val < mmap_min_addr)
 			goto out;
 	}
 
@@ -1778,16 +1778,16 @@ static int validate_prctl_map(struct prctl_mm_map *prctl_map)
 	 * @brk should be after @end_data in traditional maps.
 	 */
 	if (prctl_map->start_brk <= prctl_map->end_data ||
-	    prctl_map->brk <= prctl_map->end_data)
+		prctl_map->brk <= prctl_map->end_data)
 		goto out;
 
 	/*
 	 * Neither we should allow to override limits if they set.
 	 */
 	if (check_data_rlimit(rlimit(RLIMIT_DATA), prctl_map->brk,
-			      prctl_map->start_brk, prctl_map->end_data,
-			      prctl_map->start_data))
-			goto out;
+						  prctl_map->start_brk, prctl_map->end_data,
+						  prctl_map->start_data))
+		goto out;
 
 	/*
 	 * Someone is trying to cheat the auxv vector.
@@ -1807,12 +1807,12 @@ static int validate_prctl_map(struct prctl_mm_map *prctl_map)
 		const struct cred *cred = current_cred();
 
 		if (!uid_eq(cred->uid, make_kuid(ns, 0)) ||
-		    !gid_eq(cred->gid, make_kgid(ns, 0)))
+			!gid_eq(cred->gid, make_kgid(ns, 0)))
 			goto out;
 	}
 
 	error = 0;
-out:
+	out:
 	return error;
 }
 
@@ -1902,7 +1902,7 @@ out:
 #endif /* CONFIG_CHECKPOINT_RESTORE */
 
 static int prctl_set_auxv(struct mm_struct *mm, unsigned long addr,
-			  unsigned long len)
+						  unsigned long len)
 {
 	/*
 	 * This doesn't move the auxiliary vector itself since it's pinned to
@@ -1916,7 +1916,7 @@ static int prctl_set_auxv(struct mm_struct *mm, unsigned long addr,
 		return -EINVAL;
 
 	if (copy_from_user(user_auxv, (const void __user *)addr, len))
-		return -EFAULT;
+	return -EFAULT;
 
 	/* Make sure the last entry is always AT_NULL */
 	user_auxv[AT_VECTOR_SIZE - 2] = 0;
@@ -1932,7 +1932,7 @@ static int prctl_set_auxv(struct mm_struct *mm, unsigned long addr,
 }
 
 static int prctl_set_mm(int opt, unsigned long addr,
-			unsigned long arg4, unsigned long arg5)
+						unsigned long arg4, unsigned long arg5)
 {
 	struct mm_struct *mm = current->mm;
 	struct prctl_mm_map prctl_map;
@@ -1940,8 +1940,8 @@ static int prctl_set_mm(int opt, unsigned long addr,
 	int error;
 
 	if (arg5 || (arg4 && (opt != PR_SET_MM_AUXV &&
-			      opt != PR_SET_MM_MAP &&
-			      opt != PR_SET_MM_MAP_SIZE)))
+						  opt != PR_SET_MM_MAP &&
+						  opt != PR_SET_MM_MAP_SIZE)))
 		return -EINVAL;
 
 #ifdef CONFIG_CHECKPOINT_RESTORE
@@ -1982,41 +1982,41 @@ static int prctl_set_mm(int opt, unsigned long addr,
 	prctl_map.exe_fd	= -1;
 
 	switch (opt) {
-	case PR_SET_MM_START_CODE:
-		prctl_map.start_code = addr;
-		break;
-	case PR_SET_MM_END_CODE:
-		prctl_map.end_code = addr;
-		break;
-	case PR_SET_MM_START_DATA:
-		prctl_map.start_data = addr;
-		break;
-	case PR_SET_MM_END_DATA:
-		prctl_map.end_data = addr;
-		break;
-	case PR_SET_MM_START_STACK:
-		prctl_map.start_stack = addr;
-		break;
-	case PR_SET_MM_START_BRK:
-		prctl_map.start_brk = addr;
-		break;
-	case PR_SET_MM_BRK:
-		prctl_map.brk = addr;
-		break;
-	case PR_SET_MM_ARG_START:
-		prctl_map.arg_start = addr;
-		break;
-	case PR_SET_MM_ARG_END:
-		prctl_map.arg_end = addr;
-		break;
-	case PR_SET_MM_ENV_START:
-		prctl_map.env_start = addr;
-		break;
-	case PR_SET_MM_ENV_END:
-		prctl_map.env_end = addr;
-		break;
-	default:
-		goto out;
+		case PR_SET_MM_START_CODE:
+			prctl_map.start_code = addr;
+			break;
+		case PR_SET_MM_END_CODE:
+			prctl_map.end_code = addr;
+			break;
+		case PR_SET_MM_START_DATA:
+			prctl_map.start_data = addr;
+			break;
+		case PR_SET_MM_END_DATA:
+			prctl_map.end_data = addr;
+			break;
+		case PR_SET_MM_START_STACK:
+			prctl_map.start_stack = addr;
+			break;
+		case PR_SET_MM_START_BRK:
+			prctl_map.start_brk = addr;
+			break;
+		case PR_SET_MM_BRK:
+			prctl_map.brk = addr;
+			break;
+		case PR_SET_MM_ARG_START:
+			prctl_map.arg_start = addr;
+			break;
+		case PR_SET_MM_ARG_END:
+			prctl_map.arg_end = addr;
+			break;
+		case PR_SET_MM_ENV_START:
+			prctl_map.env_start = addr;
+			break;
+		case PR_SET_MM_ENV_END:
+			prctl_map.env_end = addr;
+			break;
+		default:
+			goto out;
 	}
 
 	error = validate_prctl_map(&prctl_map);
@@ -2024,22 +2024,22 @@ static int prctl_set_mm(int opt, unsigned long addr,
 		goto out;
 
 	switch (opt) {
-	/*
-	 * If command line arguments and environment
-	 * are placed somewhere else on stack, we can
-	 * set them up here, ARG_START/END to setup
-	 * command line argumets and ENV_START/END
-	 * for environment.
-	 */
-	case PR_SET_MM_START_STACK:
-	case PR_SET_MM_ARG_START:
-	case PR_SET_MM_ARG_END:
-	case PR_SET_MM_ENV_START:
-	case PR_SET_MM_ENV_END:
-		if (!vma) {
-			error = -EFAULT;
-			goto out;
-		}
+		/*
+         * If command line arguments and environment
+         * are placed somewhere else on stack, we can
+         * set them up here, ARG_START/END to setup
+         * command line argumets and ENV_START/END
+         * for environment.
+         */
+		case PR_SET_MM_START_STACK:
+		case PR_SET_MM_ARG_START:
+		case PR_SET_MM_ARG_END:
+		case PR_SET_MM_ENV_START:
+		case PR_SET_MM_ENV_END:
+			if (!vma) {
+				error = -EFAULT;
+				goto out;
+			}
 	}
 
 	mm->start_code	= prctl_map.start_code;
@@ -2055,7 +2055,7 @@ static int prctl_set_mm(int opt, unsigned long addr,
 	mm->env_end	= prctl_map.env_end;
 
 	error = 0;
-out:
+	out:
 	up_read(&mm->mmap_sem);
 	return error;
 }
@@ -2068,222 +2068,222 @@ static int prctl_get_tid_address(struct task_struct *me, int __user **tid_addr)
 #else
 static int prctl_get_tid_address(struct task_struct *me, int __user **tid_addr)
 {
-	return -EINVAL;
+return -EINVAL;
 }
 #endif
 
 SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
-		unsigned long, arg4, unsigned long, arg5)
+unsigned long, arg4, unsigned long, arg5)
 {
-	struct task_struct *me = current;
-	unsigned char comm[sizeof(me->comm)];
-	long error;
+struct task_struct *me = current;
+unsigned char comm[sizeof(me->comm)];
+long error;
 
-	error = security_task_prctl(option, arg2, arg3, arg4, arg5);
-	if (error != -ENOSYS)
-		return error;
+error = security_task_prctl(option, arg2, arg3, arg4, arg5);
+if (error != -ENOSYS)
+return error;
 
-	error = 0;
-	switch (option) {
-	case PR_SET_PDEATHSIG:
-		if (!valid_signal(arg2)) {
-			error = -EINVAL;
-			break;
-		}
-		me->pdeath_signal = arg2;
-		break;
-	case PR_GET_PDEATHSIG:
+error = 0;
+switch (option) {
+case PR_SET_PDEATHSIG:
+if (!valid_signal(arg2)) {
+error = -EINVAL;
+break;
+}
+me->pdeath_signal = arg2;
+break;
+case PR_GET_PDEATHSIG:
 		error = put_user(me->pdeath_signal, (int __user *)arg2);
-		break;
-	case PR_GET_DUMPABLE:
+break;
+case PR_GET_DUMPABLE:
 		error = get_dumpable(me->mm);
-		break;
-	case PR_SET_DUMPABLE:
-		if (arg2 != SUID_DUMP_DISABLE && arg2 != SUID_DUMP_USER) {
-			error = -EINVAL;
-			break;
-		}
-		set_dumpable(me->mm, arg2);
-		break;
+break;
+case PR_SET_DUMPABLE:
+if (arg2 != SUID_DUMP_DISABLE && arg2 != SUID_DUMP_USER) {
+error = -EINVAL;
+break;
+}
+set_dumpable(me->mm, arg2);
+break;
 
-	case PR_SET_UNALIGN:
+case PR_SET_UNALIGN:
 		error = SET_UNALIGN_CTL(me, arg2);
-		break;
-	case PR_GET_UNALIGN:
+break;
+case PR_GET_UNALIGN:
 		error = GET_UNALIGN_CTL(me, arg2);
-		break;
-	case PR_SET_FPEMU:
+break;
+case PR_SET_FPEMU:
 		error = SET_FPEMU_CTL(me, arg2);
-		break;
-	case PR_GET_FPEMU:
+break;
+case PR_GET_FPEMU:
 		error = GET_FPEMU_CTL(me, arg2);
-		break;
-	case PR_SET_FPEXC:
+break;
+case PR_SET_FPEXC:
 		error = SET_FPEXC_CTL(me, arg2);
-		break;
-	case PR_GET_FPEXC:
+break;
+case PR_GET_FPEXC:
 		error = GET_FPEXC_CTL(me, arg2);
-		break;
-	case PR_GET_TIMING:
+break;
+case PR_GET_TIMING:
 		error = PR_TIMING_STATISTICAL;
-		break;
-	case PR_SET_TIMING:
-		if (arg2 != PR_TIMING_STATISTICAL)
-			error = -EINVAL;
-		break;
-	case PR_SET_NAME:
+break;
+case PR_SET_TIMING:
+if (arg2 != PR_TIMING_STATISTICAL)
+error = -EINVAL;
+break;
+case PR_SET_NAME:
 		comm[sizeof(me->comm) - 1] = 0;
-		if (strncpy_from_user(comm, (char __user *)arg2,
-				      sizeof(me->comm) - 1) < 0)
-			return -EFAULT;
-		set_task_comm(me, comm);
-		proc_comm_connector(me);
-		break;
-	case PR_GET_NAME:
+if (strncpy_from_user(comm, (char __user *)arg2,
+sizeof(me->comm) - 1) < 0)
+return -EFAULT;
+set_task_comm(me, comm);
+proc_comm_connector(me);
+break;
+case PR_GET_NAME:
 		get_task_comm(comm, me);
-		if (copy_to_user((char __user *)arg2, comm, sizeof(comm)))
-			return -EFAULT;
-		break;
-	case PR_GET_ENDIAN:
+if (copy_to_user((char __user *)arg2, comm, sizeof(comm)))
+return -EFAULT;
+break;
+case PR_GET_ENDIAN:
 		error = GET_ENDIAN(me, arg2);
-		break;
-	case PR_SET_ENDIAN:
+break;
+case PR_SET_ENDIAN:
 		error = SET_ENDIAN(me, arg2);
-		break;
-	case PR_GET_SECCOMP:
+break;
+case PR_GET_SECCOMP:
 		error = prctl_get_seccomp();
-		break;
-	case PR_SET_SECCOMP:
+break;
+case PR_SET_SECCOMP:
 		error = prctl_set_seccomp(arg2, (char __user *)arg3);
-		break;
-	case PR_GET_TSC:
+break;
+case PR_GET_TSC:
 		error = GET_TSC_CTL(arg2);
-		break;
-	case PR_SET_TSC:
+break;
+case PR_SET_TSC:
 		error = SET_TSC_CTL(arg2);
-		break;
-	case PR_TASK_PERF_EVENTS_DISABLE:
+break;
+case PR_TASK_PERF_EVENTS_DISABLE:
 		error = perf_event_task_disable();
-		break;
-	case PR_TASK_PERF_EVENTS_ENABLE:
+break;
+case PR_TASK_PERF_EVENTS_ENABLE:
 		error = perf_event_task_enable();
-		break;
-	case PR_GET_TIMERSLACK:
+break;
+case PR_GET_TIMERSLACK:
 		error = current->timer_slack_ns;
-		break;
-	case PR_SET_TIMERSLACK:
-		if (arg2 <= 0)
-			current->timer_slack_ns =
-					current->default_timer_slack_ns;
-		else
-			current->timer_slack_ns = arg2;
-		break;
-	case PR_MCE_KILL:
-		if (arg4 | arg5)
-			return -EINVAL;
-		switch (arg2) {
-		case PR_MCE_KILL_CLEAR:
-			if (arg3 != 0)
-				return -EINVAL;
-			current->flags &= ~PF_MCE_PROCESS;
-			break;
-		case PR_MCE_KILL_SET:
-			current->flags |= PF_MCE_PROCESS;
-			if (arg3 == PR_MCE_KILL_EARLY)
-				current->flags |= PF_MCE_EARLY;
-			else if (arg3 == PR_MCE_KILL_LATE)
-				current->flags &= ~PF_MCE_EARLY;
-			else if (arg3 == PR_MCE_KILL_DEFAULT)
-				current->flags &=
-						~(PF_MCE_EARLY|PF_MCE_PROCESS);
-			else
-				return -EINVAL;
-			break;
-		default:
-			return -EINVAL;
-		}
-		break;
-	case PR_MCE_KILL_GET:
-		if (arg2 | arg3 | arg4 | arg5)
-			return -EINVAL;
-		if (current->flags & PF_MCE_PROCESS)
-			error = (current->flags & PF_MCE_EARLY) ?
-				PR_MCE_KILL_EARLY : PR_MCE_KILL_LATE;
-		else
-			error = PR_MCE_KILL_DEFAULT;
-		break;
-	case PR_SET_MM:
+break;
+case PR_SET_TIMERSLACK:
+if (arg2 <= 0)
+current->timer_slack_ns =
+current->default_timer_slack_ns;
+else
+current->timer_slack_ns = arg2;
+break;
+case PR_MCE_KILL:
+if (arg4 | arg5)
+return -EINVAL;
+switch (arg2) {
+case PR_MCE_KILL_CLEAR:
+if (arg3 != 0)
+return -EINVAL;
+current->flags &= ~PF_MCE_PROCESS;
+break;
+case PR_MCE_KILL_SET:
+		current->flags |= PF_MCE_PROCESS;
+if (arg3 == PR_MCE_KILL_EARLY)
+current->flags |= PF_MCE_EARLY;
+else if (arg3 == PR_MCE_KILL_LATE)
+current->flags &= ~PF_MCE_EARLY;
+else if (arg3 == PR_MCE_KILL_DEFAULT)
+current->flags &=
+~(PF_MCE_EARLY|PF_MCE_PROCESS);
+else
+return -EINVAL;
+break;
+default:
+return -EINVAL;
+}
+break;
+case PR_MCE_KILL_GET:
+if (arg2 | arg3 | arg4 | arg5)
+return -EINVAL;
+if (current->flags & PF_MCE_PROCESS)
+error = (current->flags & PF_MCE_EARLY) ?
+		PR_MCE_KILL_EARLY : PR_MCE_KILL_LATE;
+else
+error = PR_MCE_KILL_DEFAULT;
+break;
+case PR_SET_MM:
 		error = prctl_set_mm(arg2, arg3, arg4, arg5);
-		break;
-	case PR_GET_TID_ADDRESS:
+break;
+case PR_GET_TID_ADDRESS:
 		error = prctl_get_tid_address(me, (int __user **)arg2);
-		break;
-	case PR_SET_CHILD_SUBREAPER:
+break;
+case PR_SET_CHILD_SUBREAPER:
 		me->signal->is_child_subreaper = !!arg2;
-		break;
-	case PR_GET_CHILD_SUBREAPER:
+break;
+case PR_GET_CHILD_SUBREAPER:
 		error = put_user(me->signal->is_child_subreaper,
-				 (int __user *)arg2);
-		break;
-	case PR_SET_NO_NEW_PRIVS:
-		if (arg2 != 1 || arg3 || arg4 || arg5)
-			return -EINVAL;
+						 (int __user *)arg2);
+break;
+case PR_SET_NO_NEW_PRIVS:
+if (arg2 != 1 || arg3 || arg4 || arg5)
+return -EINVAL;
 
-		task_set_no_new_privs(current);
-		break;
-	case PR_GET_NO_NEW_PRIVS:
-		if (arg2 || arg3 || arg4 || arg5)
-			return -EINVAL;
-		return task_no_new_privs(current) ? 1 : 0;
-	case PR_GET_THP_DISABLE:
-		if (arg2 || arg3 || arg4 || arg5)
-			return -EINVAL;
-		error = !!(me->mm->def_flags & VM_NOHUGEPAGE);
-		break;
-	case PR_SET_THP_DISABLE:
-		if (arg3 || arg4 || arg5)
-			return -EINVAL;
-		down_write(&me->mm->mmap_sem);
-		if (arg2)
-			me->mm->def_flags |= VM_NOHUGEPAGE;
-		else
-			me->mm->def_flags &= ~VM_NOHUGEPAGE;
-		up_write(&me->mm->mmap_sem);
-		break;
-	case PR_MPX_ENABLE_MANAGEMENT:
-		if (arg2 || arg3 || arg4 || arg5)
-			return -EINVAL;
-		error = MPX_ENABLE_MANAGEMENT();
-		break;
-	case PR_MPX_DISABLE_MANAGEMENT:
-		if (arg2 || arg3 || arg4 || arg5)
-			return -EINVAL;
-		error = MPX_DISABLE_MANAGEMENT();
-		break;
-	case PR_SET_FP_MODE:
+task_set_no_new_privs(current);
+break;
+case PR_GET_NO_NEW_PRIVS:
+if (arg2 || arg3 || arg4 || arg5)
+return -EINVAL;
+return task_no_new_privs(current) ? 1 : 0;
+case PR_GET_THP_DISABLE:
+if (arg2 || arg3 || arg4 || arg5)
+return -EINVAL;
+error = !!(me->mm->def_flags & VM_NOHUGEPAGE);
+break;
+case PR_SET_THP_DISABLE:
+if (arg3 || arg4 || arg5)
+return -EINVAL;
+down_write(&me->mm->mmap_sem);
+if (arg2)
+me->mm->def_flags |= VM_NOHUGEPAGE;
+else
+me->mm->def_flags &= ~VM_NOHUGEPAGE;
+up_write(&me->mm->mmap_sem);
+break;
+case PR_MPX_ENABLE_MANAGEMENT:
+if (arg2 || arg3 || arg4 || arg5)
+return -EINVAL;
+error = MPX_ENABLE_MANAGEMENT();
+break;
+case PR_MPX_DISABLE_MANAGEMENT:
+if (arg2 || arg3 || arg4 || arg5)
+return -EINVAL;
+error = MPX_DISABLE_MANAGEMENT();
+break;
+case PR_SET_FP_MODE:
 		error = SET_FP_MODE(me, arg2);
-		break;
-	case PR_GET_FP_MODE:
+break;
+case PR_GET_FP_MODE:
 		error = GET_FP_MODE(me);
-		break;
-	default:
-		error = -EINVAL;
-		break;
-	}
-	return error;
+break;
+default:
+error = -EINVAL;
+break;
+}
+return error;
 }
 
 SYSCALL_DEFINE3(getcpu, unsigned __user *, cpup, unsigned __user *, nodep,
-		struct getcpu_cache __user *, unused)
+struct getcpu_cache __user *, unused)
 {
-	int err = 0;
-	int cpu = raw_smp_processor_id();
+int err = 0;
+int cpu = raw_smp_processor_id();
 
-	if (cpup)
-		err |= put_user(cpu, cpup);
-	if (nodep)
-		err |= put_user(cpu_to_node(cpu), nodep);
-	return err ? -EFAULT : 0;
+if (cpup)
+err |= put_user(cpu, cpup);
+if (nodep)
+err |= put_user(cpu_to_node(cpu), nodep);
+return err ? -EFAULT : 0;
 }
 
 /**
@@ -2348,20 +2348,20 @@ static int do_sysinfo(struct sysinfo *info)
 	info->totalhigh <<= bitcount;
 	info->freehigh <<= bitcount;
 
-out:
+	out:
 	return 0;
 }
 
 SYSCALL_DEFINE1(sysinfo, struct sysinfo __user *, info)
 {
-	struct sysinfo val;
+struct sysinfo val;
 
-	do_sysinfo(&val);
+do_sysinfo(&val);
 
-	if (copy_to_user(info, &val, sizeof(struct sysinfo)))
-		return -EFAULT;
+if (copy_to_user(info, &val, sizeof(struct sysinfo)))
+return -EFAULT;
 
-	return 0;
+return 0;
 }
 
 #ifdef CONFIG_COMPAT
@@ -2428,7 +2428,6 @@ COMPAT_SYSCALL_DEFINE1(sysinfo, struct compat_sysinfo __user *, info)
 
 	return 0;
 }
-#endif /* CONFIG_COMPAT */
 
 ///////////////  MY_SEM	///////////////
 #include <linux/semaphore.h>
@@ -2438,20 +2437,22 @@ SYSCALL_DEFINE1(mysem_init, int, value)
 	return my_sem_init(value);
 }
 
-SYSCALL_DEFINE1(mysem_up, int, sem_index)
+SYSCALL_DEFINE1(mysem_up, int, index)
 {
-	my_sem_down(sem_index);
+	my_sem_down(index);
 	return 0;
 }
 
-SYSCALL_DEFINE1(mysem_down, int, sem_index)
+SYSCALL_DEFINE1(mysem_down, int, index)
 {
-	my_sem_up(sem_index);
+	my_sem_up(index);
 	return 0;
 }
 
-SYSCALL_DEFINE1(mysem_destroy, int, sem_index)
+SYSCALL_DEFINE1(mysem_destroy, int, index)
 {
-	my_sem_destroy(sem_index);
+	my_sem_destroy(index);
 	return 0;
 }
+
+#endif /* CONFIG_COMPAT */

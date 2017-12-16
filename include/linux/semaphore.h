@@ -14,9 +14,9 @@
 
 /* Please don't access any members of this structure directly */
 struct semaphore {
-	raw_spinlock_t		lock;
-	unsigned int		count;
-	struct list_head	wait_list;
+    raw_spinlock_t		lock;
+    unsigned int		count;
+    struct list_head	wait_list;
 };
 
 #define __SEMAPHORE_INITIALIZER(name, n)				\
@@ -31,9 +31,9 @@ struct semaphore {
 
 static inline void sema_init(struct semaphore *sem, int val)
 {
-	static struct lock_class_key __key;
-	*sem = (struct semaphore) __SEMAPHORE_INITIALIZER(*sem, val);
-	lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);
+    static struct lock_class_key __key;
+    *sem = (struct semaphore) __SEMAPHORE_INITIALIZER(*sem, val);
+    lockdep_init_map(&sem->lock.dep_map, "semaphore->lock", &__key, 0);
 }
 
 extern void down(struct semaphore *sem);
@@ -49,23 +49,19 @@ extern void up(struct semaphore *sem);
 //////////////////	MY_SEM	//////////////////
 
 struct my_semaphore {
-	raw_spinlock_t		lock;
-	unsigned int		count;
+    raw_spinlock_t		lock;
+    unsigned int		count;
 
-	struct list_head	wait_list;
-	struct list_head	run_list;
+    struct list_head	wait_list;
+    struct list_head	run_list;
 
-	struct task_struct	*booster;
+    struct task_struct	*booster;
 };
 
-#define MY_SEM_MAX_SIZE 100
-struct my_semaphore MY_SEMS[MY_SEM_MAX_SIZE];
-bool MY_SEM_INUSE[MY_SEM_MAX_SIZE];
-
 struct my_semaphore_list_items {
-	struct list_head list;
-	struct task_struct *task;
-	bool up;
+    struct list_head list;
+    struct task_struct *task;
+    bool up;
 };
 
 #define __MY_SEMAPHORE_INITIALIZER(name, n)				\
