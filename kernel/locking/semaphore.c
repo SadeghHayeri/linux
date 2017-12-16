@@ -315,12 +315,15 @@ struct my_semaphore_list_items* __find_max_prio_waiter(struct my_semaphore *sem)
 
     struct my_semaphore_list_items* pos;
     list_for_each_entry(pos, &sem->wait_list, list) {
+        printk(KERN_INFO "%% search (%d)\n", pos->task->prio);
         if(max_prio >= pos->task->prio) {
+            printk(KERN_INFO "%% selected\n");
             max_prio = pos->task->prio;
             max_prio_item = pos;
         }
     }
 
+    printk(KERN_INFO "%% result: %d\n", max_prio_item);
     return max_prio_item;
 
 }
@@ -437,7 +440,7 @@ int __booster_thread_func(void *data) {
         raw_spin_unlock_irqrestore(&sem->lock, flags);
 
         if(max_prio_waiter == NULL || random_runner == NULL) {
-            printk(KERN_INFO "# do noting. (waiter: %p) (runner: %p)\n", max_prio_waiter, random_runner);
+            printk(KERN_INFO "# do nothing. (waiter: %p) (runner: %p)\n", max_prio_waiter, random_runner);
             continue;
         }
 
