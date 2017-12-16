@@ -329,21 +329,25 @@ struct my_semaphore_list_items* __find_max_prio_waiter(struct my_semaphore *sem)
 ///////////// my_sem linked-list functions ////////////
 static noinline void __sched __add_current_to_wait_list(struct my_semaphore *sem) {
     struct task_struct *task = current;
+    printk(KERN_INFO ")) add_curr_wait_list (%d)\n", task->pid);
     __add_to_list(&sem->wait_list, task, false);
 }
 
 static noinline void __sched __remove_current_from_wait_list(struct my_semaphore *sem) {
     struct task_struct *task = current;
+    printk(KERN_INFO ")) remove_curr_wait_list (%d)\n", task->pid);
     __remove_from_list(&sem->wait_list, task);
 }
 
 static noinline void __sched __add_current_to_run_list(struct my_semaphore *sem) {
     struct task_struct *task = current;
+    printk(KERN_INFO ")) add_curr_run_list (%d)\n", task->pid);
     __add_to_list(&sem->run_list, task, false);
 }
 
 static noinline void __sched __remove_current_from_run_list(struct my_semaphore *sem) {
     struct task_struct *task = current;
+    printk(KERN_INFO ")) remove_curr_run_list (%d)\n", task->pid);
     __remove_from_list(&sem->run_list, task);
 }
 
@@ -493,22 +497,29 @@ static inline int __sched __my_down(struct my_semaphore *sem)
     struct task_struct *task = current;
     struct my_semaphore_list_items* item;
 
+    long timeout = MAX_SCHEDULE_TIMEOUT;
     for (;;) {
         if (signal_pending_state(TASK_INTERRUPTIBLE, task))
             goto interrupted;
+        if (unlikely(timeout <= 0))
+            goto timed_out;
         __set_task_state(task, TASK_INTERRUPTIBLE);
         raw_spin_unlock_irq(&sem->lock);
+        timeout = schedule_timeout(timeout);
         raw_spin_lock_irq(&sem->lock);
         item = __find_item(&sem->wait_list, task);
         if(item == NULL || item->up == true)
             goto ready_to_run;
     }
 
+    timed_out:
+        return -ETIME;
+
     interrupted:
         return -EINTR;
 
     ready_to_run:
-        return -EINTR;
+        return 0;
 }
 
 
@@ -564,18 +575,19 @@ EXPORT_SYMBOL(my_sem_up);
 void my_sem_down(int sem_index) {
     struct my_semaphore *sem = &MY_SEMS[sem_index];
     unsigned long flags;
+    int res;
     printk(KERN_INFO "## down start ##\n");
 
     raw_spin_lock_irqsave(&sem->lock, flags);
 
     if (likely(sem->count > 0)) {
-            __add_current_to_run_list(sem);
-            sem->count--;
-        }
-        else {
-            __add_current_to_wait_list(sem);
-            __my_down(sem); // sleep!
-            __remove_current_from_wait_list(sem);
+        __add_current_to_run_list(sem);
+        sem->count--;
+    } else {
+        __add_current_to_wait_list(sem);
+        res = __my_down(sem); // sleep!
+        __remove_current_from_wait_list(sem);
+        if(res == 0)
             __add_current_to_run_list(sem);
     }
 
